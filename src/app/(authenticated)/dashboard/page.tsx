@@ -128,7 +128,7 @@ export default function Dashboard() {
 
     return (
         <div className="space-y-6">
-            {/* <Disclaimer /> */} {/* Commented out until ported */}
+            <Disclaimer />
 
             {/* Quick Actions */}
             <div className="flex flex-wrap gap-3">
@@ -138,7 +138,7 @@ export default function Dashboard() {
                         Upload Statement
                     </Button>
                 </Link>
-                <Link href="/tax-calculator">
+                <Link href="/calculator">
                     <Button variant="outline">
                         <Calculator className="w-4 h-4 mr-2" />
                         Calculate Tax

@@ -47,14 +47,9 @@ export default function TaxCalculatorPage() {
     }, []);
 
     const fetchSubscription = async (uid: string) => {
-        // Mocking subscription for now or fetching from DB
-        // const { data } = await supabase.from('subscriptions').select('*').eq('user_id', uid).single();
-        // if (data) setSubscription(data);
-
-        // Default to PRO for development/testing if needed, or stick to free.
-        // Let's assume free but maybe user wants to see the gate.
-        // For migration purposes, I'll set it to 'pro' to allow testing the calculator
-        setSubscription({ plan: 'pro' });
+        const { data } = await supabase.from('subscriptions').select('*').eq('user_id', uid).eq('status', 'active').single();
+        if (data) setSubscription(data);
+        else setSubscription({ plan: 'free' });
     };
 
     const fetchProfile = async (uid: string) => {

@@ -1,24 +1,28 @@
-"use client";
 
-import React from 'react';
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Crown, Lock } from 'lucide-react';
-import Link from 'next/link';
+import React from 'react'
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Crown, Lock } from 'lucide-react'
+import Link from 'next/link'
 
 interface SubscriptionGateProps {
-    requiredPlan?: 'free' | 'pro' | 'premium';
-    currentPlan?: string;
-    feature?: string;
-    children: React.ReactNode;
+    requiredPlan?: 'free' | 'pro' | 'premium'
+    currentPlan?: 'free' | 'pro' | 'premium'
+    feature?: string
+    children: React.ReactNode
 }
 
-export default function SubscriptionGate({ requiredPlan = 'pro', currentPlan = 'free', feature, children }: SubscriptionGateProps) {
-    const planOrder: Record<string, number> = { free: 0, pro: 1, premium: 2 };
-    const hasAccess = (planOrder[currentPlan || 'free'] || 0) >= (planOrder[requiredPlan] || 1);
+export default function SubscriptionGate({
+    requiredPlan = 'pro',
+    currentPlan = 'free',
+    feature,
+    children
+}: SubscriptionGateProps) {
+    const planOrder: Record<string, number> = { free: 0, pro: 1, premium: 2 }
+    const hasAccess = planOrder[currentPlan || 'free'] >= planOrder[requiredPlan]
 
     if (hasAccess) {
-        return <>{children}</>;
+        return <>{children}</>
     }
 
     return (
@@ -33,13 +37,13 @@ export default function SubscriptionGate({ requiredPlan = 'pro', currentPlan = '
                 <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-md mx-auto">
                     Upgrade your plan to unlock this feature and get access to advanced tax tools.
                 </p>
-                <Link href="/pricing">
-                    <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600">
+                <Link href="/subscription">
+                    <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 border-none text-white">
                         <Crown className="w-4 h-4 mr-2" />
                         Upgrade Now
                     </Button>
                 </Link>
             </CardContent>
         </Card>
-    );
+    )
 }

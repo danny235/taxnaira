@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import OnboardingForm from '@/components/profile/onboarding-form'
+import { useQueryClient } from '@tanstack/react-query'
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -42,6 +44,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         enabled: !!user?.id,
     })
 
+    const queryClient = useQueryClient()
+
     if (loadingAuth || (user && loadingProfile)) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
@@ -53,8 +57,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )
     }
 
-    // If not authenticated, the middleware should redirect, but we can double check or render simpler layout
-    // For now, we assume this layout is only used for authenticated pages
+    if (user && profile && !profile.profile_complete) {
+        return (
+            <OnboardingForm
+                userId={user.id}
+                onComplete={() => {
+                    queryClient.invalidateQueries({ queryKey: ['profile', user.id] })
+                }}
+            />
+        )
+    }
 
     return (
         <div className="min-h-screen">
