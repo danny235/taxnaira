@@ -28,6 +28,7 @@ import { useAuth } from '@/components/auth-provider'
 // Map page names to paths for Next.js
 const pageToPath = (page: string) => {
     if (page === 'Dashboard') return '/dashboard'
+    if (page === 'ProfitLoss') return '/profit-loss'
     return `/${page.toLowerCase()}`
 }
 
@@ -35,10 +36,10 @@ const navigation = [
     { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' },
     { name: 'Upload', icon: Upload, page: 'Upload' },
     { name: 'Transactions', icon: Receipt, page: 'Transactions' },
-    // { name: 'Profit & Loss', icon: TrendingUp, page: 'ProfitLoss' },
+    { name: 'Profit & Loss', icon: TrendingUp, page: 'ProfitLoss' },
     { name: 'Tax Calculator', icon: Calculator, page: 'calculator' },
-    // { name: 'Reports', icon: FileText, page: 'Reports', pro: true },
-    // { name: 'Documents', icon: FolderOpen, page: 'Documents' },
+    { name: 'Reports', icon: FileText, page: 'Reports', pro: true },
+    { name: 'Documents', icon: FolderOpen, page: 'Documents' },
 ]
 
 const bottomNav = [
