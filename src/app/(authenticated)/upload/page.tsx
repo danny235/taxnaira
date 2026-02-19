@@ -65,12 +65,33 @@ export default function UploadPage() {
         toast.success(`${count} transactions saved successfully`);
     };
 
-    const handleDeleteFile = async (fileId: string) => {
-        const { error } = await supabase.from('uploaded_files').delete().eq('id', fileId);
+    const handleDeleteFile = async (file: any) => {
+        // 1. Delete from Storage
+        // Standardize path: strip public prefix if present
+        let relativePath = file.file_url;
+        if (relativePath.includes('public/tax_documents/')) {
+            relativePath = relativePath.split('public/tax_documents/').pop()!;
+        }
+
+        if (relativePath) {
+            const { error: storageError } = await supabase.storage.from('tax_documents').remove([relativePath]);
+            if (storageError) console.error('Storage delete error:', storageError);
+        }
+
+        // 2. Delete from Database
+        const { error } = await supabase.from('uploaded_files').delete().eq('id', file.id);
+
         if (!error) {
+            // 3. Clear parsing state if this was the active file
+            if (uploadedFile?.id === file.id) {
+                setUploadedFile(null);
+                setFileUrl(null);
+            }
+
             if (userId) fetchFiles(userId);
-            toast.success('File deleted');
+            toast.success('File deleted successfully');
         } else {
+            console.error('Delete error:', error);
             toast.error('Failed to delete file');
         }
     };
@@ -146,14 +167,18 @@ export default function UploadPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Button variant="ghost" size="icon" asChild>
-                                                <a href={file.file_url} target="_blank" rel="noopener noreferrer">
+                                                <a
+                                                    href={supabase.storage.from('tax_documents').getPublicUrl(file.file_url).data.publicUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
                                                     <Eye className="w-4 h-4 text-slate-400" />
                                                 </a>
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => handleDeleteFile(file.id)}
+                                                onClick={() => handleDeleteFile(file)}
                                             >
                                                 <Trash2 className="w-4 h-4 text-red-400" />
                                             </Button>

@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
+import { useAuth } from '@/components/auth-provider';
+
 export default function AdminPage() {
     const [showBracketDialog, setShowBracketDialog] = useState(false);
     const [editingBracket, setEditingBracket] = useState<any>(null);
@@ -34,8 +36,7 @@ export default function AdminPage() {
     const router = useRouter();
     const supabase = createClient();
 
-    // Data states
-    const [user, setUser] = useState<any>(null);
+    const { user, role, isLoading: authLoading } = useAuth();
     const [users, setUsers] = useState<any[]>([]);
     const [taxBrackets, setTaxBrackets] = useState<any[]>([]);
     const [settings, setSettings] = useState<any>(null);
@@ -51,32 +52,32 @@ export default function AdminPage() {
 
     useEffect(() => {
         const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                router.push('/login');
+            if (authLoading) return;
+
+            if (!user || role !== 'admin') {
+                if (!authLoading) {
+                    // Only redirect if we are sure auth is done loading
+                    // However, relying on useEffect for redirect can cause flash.
+                    // Better handled by Middleware or Layout, but for now:
+                    if (!user) router.push('/login');
+                    else if (role !== 'admin') {
+                        toast.error("Unauthorized access");
+                        router.push('/dashboard');
+                    }
+                }
                 return;
             }
-
-            // Function to check role. Assuming logic or Metadata
-            // For migration, we might not have 'role' in auth.users metadata yet.
-            // We'll proceed but ideally we check a 'users' table or metadata.
-            // Let's assume we can fetch it from 'users' table or metadata.
-
-            // Simplified check: allow for now or check profile
-            // In real app, MUST enforce RLS and check here.
-            setUser(user);
 
             await Promise.all([
                 fetchUsers(),
                 fetchBrackets(),
                 fetchSettings(),
                 fetchLogs()
-                // fetchSubscriptions()
             ]);
             setLoading(false);
         };
         init();
-    }, []);
+    }, [user, role, authLoading]);
 
     useEffect(() => {
         if (settings) {
@@ -187,19 +188,21 @@ export default function AdminPage() {
 
     const userStats = {
         total: users.length,
-        admins: users.filter(u => u.role === 'admin' || (u.metadata && u.metadata.role === 'admin')).length, // Adjust based on schema
+        admins: users.filter(u => u.role === 'admin').length,
         freeUsers: users.length, // Placeholder until subscription linking is clear
         proUsers: 0,
         premiumUsers: 0
     };
 
-    if (loading) {
+    if (loading || authLoading) {
         return (
             <div className="flex items-center justify-center h-screen">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
             </div>
         );
     }
+
+    if (!user || role !== 'admin') return null; // Prevent flash of content
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto p-6">

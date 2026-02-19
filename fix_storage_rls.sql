@@ -50,3 +50,12 @@ BEGIN
     END IF;
 END
 $$;
+
+-- Policy for Public Tables
+ALTER TABLE public.uploaded_files ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can delete own uploaded files" ON public.uploaded_files;
+CREATE POLICY "Users can delete own uploaded files"
+ON public.uploaded_files FOR DELETE
+TO authenticated
+USING (auth.uid() = user_id);

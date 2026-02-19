@@ -80,7 +80,7 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
                 .from('uploaded_files')
                 .insert({
                     user_id: userId,
-                    file_url: publicUrl,
+                    file_url: uploadData.path,
                     file_name: file.name,
                     file_type: fileType,
                     file_format: fileFormat,

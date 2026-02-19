@@ -76,20 +76,17 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         setError(null);
 
         try {
-            // TODO: Replace with actual AI parsing logic (e.g., via Edge Function)
-            // For now, we simulate a delay and return mock data or basic extracted data
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            const response = await fetch('/api/ai/extract', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileId, fileUrl })
+            });
 
-            // Mock data for demonstration
-            const mockTransactions: Transaction[] = [
-                { tempId: 1, date: '2025-01-15', description: 'Salary Deposit', amount: 500000, type: 'credit', currency: 'NGN' },
-                { tempId: 2, date: '2025-01-16', description: 'Uber Ride', amount: 2500, type: 'debit', currency: 'NGN' },
-                { tempId: 3, date: '2025-01-18', description: 'Spar Supermarket', amount: 45000, type: 'debit', currency: 'NGN' },
-                { tempId: 4, date: '2025-01-20', description: 'Electricity Bill', amount: 15000, type: 'debit', currency: 'NGN' },
-                { tempId: 5, date: '2025-01-25', description: 'Freelance Project', amount: 150000, type: 'credit', currency: 'NGN' },
-            ];
+            const data = await response.json();
 
-            const parsed = mockTransactions;
+            if (data.error) throw new Error(data.error);
+
+            const parsed = data.transactions || [];
 
             if (parsed.length === 0) {
                 setError("No transactions could be extracted from this file.");
@@ -97,49 +94,31 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 return;
             }
 
-            const withIds = parsed.map((tx, i) => ({ ...tx, tempId: i, selected: true }));
+            // Map AI response to component state
+            const withIds = parsed.map((tx: any, i: number) => ({
+                ...tx,
+                tempId: i,
+                selected: true,
+                type: tx.is_income ? 'credit' : 'debit'
+            }));
+
             setTransactions(withIds);
-            setSelected(Object.fromEntries(withIds.map(tx => [tx.tempId, true])));
+            setSelected(Object.fromEntries(withIds.map((tx: any) => [tx.tempId, true])));
             setParsing(false);
 
-            if (withIds.length > 0) {
-                classifyTransactions(withIds);
-            }
-        } catch (e) {
-            setError("Failed to parse file.");
+            toast.success(`AI extracted ${withIds.length} transactions`);
+        } catch (e: any) {
+            console.error("AI Extraction Error:", e);
+            setError(e.message || "Failed to parse file.");
             setParsing(false);
         }
     };
 
     const classifyTransactions = async (txList?: Transaction[]) => {
-        const toClassify = txList ?? transactions;
-        if (toClassify.length === 0) return;
-        setClassifying(true);
-
-        // TODO: AI Classification Logic
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        const updated = toClassify.map((tx) => {
-            // Simple rule-based mock classification
-            let category = 'miscellaneous';
-            let isIncome = tx.type === 'credit';
-
-            if (tx.description.toLowerCase().includes('salary')) category = 'salary';
-            else if (tx.description.toLowerCase().includes('uber')) category = 'transportation';
-            else if (tx.description.toLowerCase().includes('spar')) category = 'food';
-            else if (tx.description.toLowerCase().includes('electricity')) category = 'utilities';
-            else if (tx.description.toLowerCase().includes('freelance')) category = 'freelance_income';
-
-            return {
-                ...tx,
-                category,
-                is_income: isIncome,
-                ai_confidence: 0.9
-            };
-        });
-
-        setTransactions(updated);
-        setClassifying(false);
+        // Since the new extract API already classifies, 
+        // we can just use it or leave this as a refine step.
+        // For now, extraction includes classification.
+        return;
     };
 
     const toggleSelect = (tempId: number) => {
@@ -240,21 +219,19 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                     {selectedCount} of {transactions.length} selected
                                 </span>
                             </div>
-                            {!transactions[0]?.category && (
-                                <Button onClick={() => classifyTransactions()} disabled={classifying} variant="outline" size="sm">
-                                    {classifying ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Classifying...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles className="w-4 h-4 mr-2" />
-                                            Auto-Classify
-                                        </>
-                                    )}
-                                </Button>
-                            )}
+                            <Button onClick={() => parseFile()} disabled={parsing} variant="outline" size="sm">
+                                {parsing ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles className="w-4 h-4 mr-2 text-emerald-500" />
+                                        Re-Extract
+                                    </>
+                                )}
+                            </Button>
                         </div>
 
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[400px] overflow-y-auto">

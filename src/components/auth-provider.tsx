@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 type AuthContextType = {
     user: User | null
     session: Session | null
+    role: string | null
     isLoading: boolean
     signOut: () => Promise<void>
     navigateToLogin: () => void
@@ -17,6 +18,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
     user: null,
     session: null,
+    role: null,
     isLoading: true,
     signOut: async () => { },
     navigateToLogin: () => { },
@@ -25,18 +27,36 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [session, setSession] = useState<Session | null>(null)
+    const [role, setRole] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const router = useRouter()
     const supabase = createClient()
 
     useEffect(() => {
+        const fetchRole = async (userId: string) => {
+            const { data } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', userId)
+                .single()
+            if (data) setRole(data.role)
+        }
+
         const {
             data: { subscription },
-        } = supabase.auth.onAuthStateChange((event, session) => {
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
             setSession(session)
             setUser(session?.user ?? null)
+
+            if (session?.user) {
+                await fetchRole(session.user.id)
+            } else {
+                setRole(null)
+            }
+
             setIsLoading(false)
             if (event === 'SIGNED_OUT') {
+                setRole(null)
                 router.refresh()
             }
         })
@@ -56,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, session, isLoading, signOut, navigateToLogin }}>
+        <AuthContext.Provider value={{ user, session, role, isLoading, signOut, navigateToLogin }}>
             {children}
         </AuthContext.Provider>
     )
