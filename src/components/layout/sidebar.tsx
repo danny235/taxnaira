@@ -67,7 +67,7 @@ export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarP
     return (
         <aside
             className={cn(
-                'fixed left-0 top-0 h-full bg-background/80 backdrop-blur-md border-r border-border transition-all duration-300 z-40 flex flex-col',
+                'bg-background/80 backdrop-blur-md border-r border-border transition-all duration-300 flex flex-col h-full',
                 collapsed ? 'w-16' : 'w-64'
             )}
         >
@@ -78,15 +78,12 @@ export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarP
                         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
                             <span className="text-white font-bold text-sm">₦</span>
                         </div>
+                        <span className="font-bold text-lg text-slate-900 dark:text-white">TaxNaira</span>
                     </div>
                 )}
                 {/* Desktop Toggle */}
-                <Button variant="ghost" size="icon" onClick={onToggle} className="hidden lg:flex text-slate-400">
+                <Button variant="ghost" size="icon" onClick={onToggle} className="hidden lg:flex text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
                     {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-                </Button>
-                {/* Mobile Close Button */}
-                <Button variant="ghost" size="icon" onClick={onToggle} className="lg:hidden text-slate-400">
-                    <X className="w-5 h-5" />
                 </Button>
             </div>
 

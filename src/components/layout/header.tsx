@@ -17,15 +17,17 @@ import {
 import { Bell, Menu, User, Settings, Crown } from 'lucide-react'
 import { useAuth } from '@/components/auth-provider'
 import { ModeToggle } from '@/components/mode-toggle'
+import { cn } from '@/lib/utils'
 
 interface HeaderProps {
     user: any
     profile: any
     subscription: any
     onMenuToggle: () => void
+    className?: string
 }
 
-export function Header({ user, profile, subscription, onMenuToggle }: HeaderProps) {
+export function Header({ user, profile, subscription, onMenuToggle, className }: HeaderProps) {
     const { signOut } = useAuth()
 
     const getInitials = (name: string) => {
@@ -40,21 +42,24 @@ export function Header({ user, profile, subscription, onMenuToggle }: HeaderProp
             case 'pro':
                 return <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white">Pro</Badge>
             default:
-                return <Badge variant="secondary">Free</Badge>
+                return <Badge variant="secondary" className="hidden sm:inline-flex">Free</Badge>
         }
     }
 
     return (
-        <header className="h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-20">
+        <header className={cn(
+            "h-16 bg-background/80 backdrop-blur-md border-b border-border flex items-center justify-between px-4 lg:px-6 fixed top-0 right-0 z-20 transition-all duration-300 left-0",
+            className
+        )}>
             <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" className="lg:hidden" onClick={onMenuToggle}>
-                    <Menu className="w-5 h-5" />
+                <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={onMenuToggle}>
+                    <Menu className="w-4 h-4" />
                 </Button>
-                <div>
-                    <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
-                        Welcome back, {profile?.full_name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-900 dark:text-white truncate">
+                        Hello, {profile?.full_name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
                     </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500 dark:text-slate-400 hidden lg:block">
                         Manage your taxes efficiently
                     </p>
                 </div>
@@ -65,16 +70,16 @@ export function Header({ user, profile, subscription, onMenuToggle }: HeaderProp
 
                 <ModeToggle />
 
-                <Button variant="ghost" size="icon" className="relative">
-                    <Bell className="w-5 h-5" />
-                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                <Button variant="ghost" size="icon" className="relative h-8 w-8">
+                    <Bell className="w-4 h-4" />
+                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
                 </Button>
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="flex items-center gap-2 px-2">
-                            <Avatar className="w-8 h-8">
-                                <AvatarFallback className="bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-400">
+                        <Button variant="ghost" className="flex items-center gap-2 px-1 h-8">
+                            <Avatar className="w-7 h-7 sm:w-8 sm:h-8">
+                                <AvatarFallback className="text-[10px] sm:text-xs bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-400">
                                     {getInitials(profile?.full_name || user?.user_metadata?.full_name)}
                                 </AvatarFallback>
                             </Avatar>
@@ -82,9 +87,9 @@ export function Header({ user, profile, subscription, onMenuToggle }: HeaderProp
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
                         <DropdownMenuLabel>
-                            <div>
-                                <p className="font-medium">{profile?.full_name || user?.user_metadata?.full_name}</p>
-                                <p className="text-xs text-slate-500">{user?.email}</p>
+                            <div className="flex flex-col gap-1 overflow-hidden">
+                                <p className="font-medium truncate">{profile?.full_name || user?.user_metadata?.full_name}</p>
+                                <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />

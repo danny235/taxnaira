@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -57,38 +58,27 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="min-h-screen">
-            {/* Sidebar */}
-            <div className="hidden lg:block print:hidden">
+            {/* Sidebar (Desktop) */}
+            <div className="hidden lg:block fixed left-0 top-0 h-full z-40 print:hidden">
                 <Sidebar
                     collapsed={sidebarCollapsed}
                     onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
                     subscription={subscription}
-                    isAdmin={false} // TODO: Check role
+                    isAdmin={profile?.role === 'admin'}
                 />
             </div>
-
-            {/* Mobile Sidebar Overlay */}
-            {mobileMenuOpen && (
-                <div
-                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-30 lg:hidden transition-opacity duration-300"
-                    onClick={() => setMobileMenuOpen(false)}
-                />
-            )}
 
             {/* Mobile Sidebar */}
-            <div
-                className={cn(
-                    'fixed inset-y-0 left-0 z-40 lg:hidden transform transition-transform duration-300',
-                    mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-                )}
-            >
-                <Sidebar
-                    collapsed={false}
-                    onToggle={() => setMobileMenuOpen(false)}
-                    subscription={subscription}
-                    isAdmin={false} // TODO: Check role
-                />
-            </div>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+                <SheetContent side="left" className="p-0 border-none w-64">
+                    <Sidebar
+                        collapsed={false}
+                        onToggle={() => setMobileMenuOpen(false)}
+                        subscription={subscription}
+                        isAdmin={profile?.role === 'admin'}
+                    />
+                </SheetContent>
+            </Sheet>
 
             {/* Main Content */}
             <div
@@ -102,11 +92,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         user={user}
                         profile={profile}
                         subscription={subscription}
-                        onMenuToggle={() => setMobileMenuOpen(true)}
+                        onMenuToggle={() => setMobileMenuOpen((prev) => !prev)}
+                        className={sidebarCollapsed ? 'lg:left-16' : 'lg:left-64'}
                     />
                 </div>
 
-                <main className="p-4 lg:p-6">{children}</main>
+                <main className="p-2 sm:p-4 lg:p-6 pt-20 sm:pt-20 lg:pt-20">{children}</main>
             </div>
         </div>
     )
