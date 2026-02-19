@@ -78,3 +78,39 @@ export async function sendOtpEmail(to: string, otp: string) {
     return null;
   }
 }
+
+export async function sendReportReadyEmail(to: string, year: number) {
+  const html = `
+    <div style="font-family: sans-serif; padding: 20px;">
+      <h2>Your ${year} Tax Report is Ready</h2>
+      <p>Hello, your tax calculation for the year ${year} has been processed and is now available on your dashboard.</p>
+      <a href="${process.env.NEXT_PUBLIC_APP_URL}/reports" style="background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Report</a>
+    </div>
+  `;
+  return resend.emails.send({
+    from: "TaxNaira <noreply@kraftkonect.com>",
+    to: [to],
+    subject: `Tax Report Ready - ${year}`,
+    html,
+  });
+}
+
+export async function sendPaymentReceiptEmail(
+  to: string,
+  amount: number,
+  plan: string,
+) {
+  const html = `
+    <div style="font-family: sans-serif; padding: 20px;">
+      <h2>Payment Received</h2>
+      <p>Thank you for upgrading to ${plan}. We have received your payment of ₦${amount.toLocaleString()}.</p>
+      <p>Your pro features are now unlocked.</p>
+    </div>
+  `;
+  return resend.emails.send({
+    from: "TaxNaira <noreply@kraftkonect.com>",
+    to: [to],
+    subject: `Payment Receipt - TaxNaira`,
+    html,
+  });
+}
