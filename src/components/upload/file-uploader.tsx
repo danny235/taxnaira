@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload, FileText, X, Loader2, CheckCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { cn } from "@/lib/utils";
 import { toast } from 'sonner';
 
@@ -20,8 +19,6 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
     const [fileType, setFileType] = useState('bank_statement');
     const [uploading, setUploading] = useState(false);
     const [uploaded, setUploaded] = useState(false);
-
-    const supabase = createClient();
 
     const handleDrag = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -53,43 +50,25 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
     };
 
     const handleUpload = async () => {
-        if (!file || !userId) {
-            if (!userId) toast.error("User not authenticated");
-            return;
-        }
+        if (!file) return;
         setUploading(true);
 
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${userId}/${Date.now()}.${fileExt}`;
-            const bucket = 'tax_documents'; // Ensure this bucket exists in Supabase
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('fileType', fileType);
 
-            const { data: uploadData, error: uploadError } = await supabase.storage
-                .from(bucket)
-                .upload(fileName, file);
+            const res = await fetch('/api/user/files', {
+                method: 'POST',
+                body: formData,
+            });
 
-            if (uploadError) throw uploadError;
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Upload failed');
+            }
 
-            const { data: { publicUrl } } = supabase.storage
-                .from(bucket)
-                .getPublicUrl(uploadData.path);
-
-            const fileFormat = fileExt?.toLowerCase() || 'unknown';
-
-            const { data: uploadedFile, error: dbError } = await supabase
-                .from('uploaded_files')
-                .insert({
-                    user_id: userId,
-                    file_url: uploadData.path,
-                    file_name: file.name,
-                    file_type: fileType,
-                    file_format: fileFormat,
-                    processed: false
-                })
-                .select()
-                .single();
-
-            if (dbError) throw dbError;
+            const { file: uploadedFile, publicUrl } = await res.json();
 
             setUploading(false);
             setUploaded(true);
@@ -135,7 +114,7 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
                         onDragOver={handleDrag}
                         onDrop={handleDrop}
                         className={cn(
-                            "relative border-2 border-dashed rounded-xl p-8 transition-all duration-200 text-center",
+                            "relative border-2 border-dashed rounded-xl p-4 md:p-8 transition-all duration-200 text-center",
                             isDragging ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20" : "border-slate-200 dark:border-slate-700",
                             file && "border-emerald-500"
                         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/components/auth-provider';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,79 +25,75 @@ export default function UploadPage() {
     const [loadingFiles, setLoadingFiles] = useState(false);
     const [files, setFiles] = useState<any[]>([]);
 
-    const supabase = createClient();
+
     const [userId, setUserId] = useState<string | null>(null);
 
     // Fetch user and files on mount
+    const { user } = useAuth();
+
     React.useEffect(() => {
-        const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                setUserId(user.id);
-                fetchFiles(user.id);
-            }
-        };
-        init();
-    }, []);
+        if (user) {
+            setUserId(user.id);
+            fetchFiles();
+        }
+    }, [user]);
 
-    const fetchFiles = async (uid: string) => {
+    const fetchFiles = async (uid?: string) => {
         setLoadingFiles(true);
-        const { data } = await supabase
-            .from('uploaded_files')
-            .select('*')
-            .eq('user_id', uid)
-            .order('created_at', { ascending: false });
-
-        if (data) setFiles(data);
-        setLoadingFiles(false);
+        try {
+            const res = await fetch('/api/user/files');
+            if (res.ok) {
+                const data = await res.json();
+                setFiles(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch files:', error);
+        } finally {
+            setLoadingFiles(false);
+        }
     };
 
     const handleUploadComplete = (file: any, url: string) => {
         setUploadedFile(file);
         setFileUrl(url);
-        if (userId) fetchFiles(userId);
+        if (userId) fetchFiles();
     };
 
     const handleParseComplete = (count: number) => {
         setUploadedFile(null);
         setFileUrl(null);
-        if (userId) fetchFiles(userId);
+        if (userId) fetchFiles();
         toast.success(`${count} transactions saved successfully`);
     };
 
     const handleDeleteFile = async (file: any) => {
-        // 1. Delete from Storage
-        // Standardize path: strip public prefix if present
-        let relativePath = file.file_url;
-        if (relativePath.includes('public/tax_documents/')) {
-            relativePath = relativePath.split('public/tax_documents/').pop()!;
-        }
+        if (!confirm('Are you sure you want to delete this file?')) return;
 
-        if (relativePath) {
-            const { error: storageError } = await supabase.storage.from('tax_documents').remove([relativePath]);
-            if (storageError) console.error('Storage delete error:', storageError);
-        }
+        try {
+            const res = await fetch(`/api/user/files?id=${file.id}&path=${encodeURIComponent(file.file_url)}`, {
+                method: 'DELETE'
+            });
 
-        // 2. Delete from Database
-        const { error } = await supabase.from('uploaded_files').delete().eq('id', file.id);
+            if (res.ok) {
+                // Clear parsing state if this was the active file
+                if (uploadedFile?.id === file.id) {
+                    setUploadedFile(null);
+                    setFileUrl(null);
+                }
 
-        if (!error) {
-            // 3. Clear parsing state if this was the active file
-            if (uploadedFile?.id === file.id) {
-                setUploadedFile(null);
-                setFileUrl(null);
+                fetchFiles();
+                toast.success('File deleted successfully');
+            } else {
+                throw new Error('Failed to delete');
             }
-
-            if (userId) fetchFiles(userId);
-            toast.success('File deleted successfully');
-        } else {
+        } catch (error) {
             console.error('Delete error:', error);
             toast.error('Failed to delete file');
         }
     };
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto p-6">
+        <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6">
             <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Upload Documents</h1>
                 <p className="text-slate-500 dark:text-slate-400 mt-1">Upload your bank statements and financial documents</p>
@@ -123,7 +119,7 @@ export default function UploadPage() {
                 </div>
 
                 {/* Uploaded Files List */}
-                <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
+                <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm h-fit">
                     <CardHeader className="pb-4">
                         <CardTitle className="text-lg font-semibold">Uploaded Files</CardTitle>
                     </CardHeader>
@@ -137,14 +133,14 @@ export default function UploadPage() {
                                 {files.map((file) => (
                                     <div
                                         key={file.id}
-                                        className="flex items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors gap-3"
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex-shrink-0">
                                                 <FileText className="w-5 h-5 text-emerald-600" />
                                             </div>
-                                            <div>
-                                                <p className="font-medium text-slate-900 dark:text-white text-sm truncate max-w-[200px]">
+                                            <div className="min-w-0">
+                                                <p className="font-medium text-slate-900 dark:text-white text-sm truncate">
                                                     {file.file_name || 'Document'}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-1">
@@ -165,10 +161,10 @@ export default function UploadPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 self-end sm:self-auto ml-auto sm:ml-0">
                                             <Button variant="ghost" size="icon" asChild>
                                                 <a
-                                                    href={supabase.storage.from('tax_documents').getPublicUrl(file.file_url).data.publicUrl}
+                                                    href={file.file_url.startsWith('http') ? file.file_url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/tax_documents/${file.file_url}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                 >
@@ -196,6 +192,6 @@ export default function UploadPage() {
                     </CardContent>
                 </Card>
             </div>
-        </div>
+        </div >
     );
 }

@@ -8,6 +8,30 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || "");
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function retry<T>(
+  fn: () => Promise<T>,
+  retries = 5,
+  delayMs = 2000,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (
+      retries > 0 &&
+      (error.status === 429 || error.message?.includes("429"))
+    ) {
+      console.warn(
+        `Gemini 429 hit. Retrying in ${delayMs}ms... (${retries} left)`,
+      );
+      await delay(delayMs);
+      return retry(fn, retries - 1, delayMs * 2);
+    }
+    throw error;
+  }
+}
+
 export async function classifyTransaction(description: string) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
@@ -36,13 +60,14 @@ export async function classifyTransaction(description: string) {
   `;
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await retry(() => model.generateContent(prompt));
     const text = result.response.text();
     // Clean potential markdown code blocks
     const jsonString = text.replace(/```json|```/gi, "").trim();
     return JSON.parse(jsonString);
   } catch (error) {
     console.error("Gemini Classification Error:", error);
+    // Return default/error object rather than throwing to avoid breaking entire batch processing
     return {
       category: "other_income",
       confidence: 0,
@@ -72,12 +97,12 @@ export async function extractDataFromStatement(
   `;
 
   try {
-    const result = await model.generateContent(prompt);
+    const result = await retry(() => model.generateContent(prompt));
     const text = result.response.text();
     const jsonString = text.replace(/```json|```/gi, "").trim();
     return JSON.parse(jsonString);
   } catch (error) {
     console.error("Gemini Extraction Error:", error);
-    return [];
+    throw error; // Rethrow to let the API know it failed
   }
 }

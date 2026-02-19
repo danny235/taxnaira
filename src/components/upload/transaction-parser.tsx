@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { cn } from "@/lib/utils";
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -62,8 +62,6 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     const [error, setError] = useState<string | null>(null);
     const hasStarted = useRef(false);
 
-    const supabase = createClient();
-
     useEffect(() => {
         if (fileUrl && !hasStarted.current) {
             hasStarted.current = true;
@@ -109,7 +107,9 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
             toast.success(`AI extracted ${withIds.length} transactions`);
         } catch (e: any) {
             console.error("AI Extraction Error:", e);
-            setError(e.message || "Failed to parse file.");
+            const errorMessage = e.message || "Failed to parse file.";
+            setError(errorMessage);
+            toast.error(errorMessage);
             setParsing(false);
         }
     };
@@ -144,12 +144,12 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
         try {
             const records = toSave.map(tx => ({
-                user_id: userId,
+                // user_id handled by API
                 date: tx.date,
                 description: tx.description,
                 amount: tx.amount,
                 currency: tx.currency || 'NGN',
-                naira_value: tx.currency === 'NGN' || !tx.currency ? tx.amount : tx.amount, // Simplified, assume 1:1 if NGN
+                naira_value: tx.currency === 'NGN' || !tx.currency ? tx.amount : tx.amount,
                 category: tx.category,
                 is_income: tx.is_income,
                 source_file_id: fileId,
@@ -157,13 +157,17 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 tax_year: new Date().getFullYear()
             }));
 
-            const { error } = await supabase.from('transactions').insert(records);
-            if (error) throw error;
+            const response = await fetch('/api/user/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactions: records, fileId })
+            });
 
-            await supabase.from('uploaded_files').update({
-                processed: true,
-                transactions_count: records.length
-            }).eq('id', fileId);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to save transactions');
+            }
 
             setSaving(false);
             if (onComplete) onComplete(records.length);
@@ -200,7 +204,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             {parsing ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Extracting...
+                                    Extracting (this may take a moment)...
                                 </>
                             ) : (
                                 'Extract Transactions'
@@ -234,7 +238,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             </Button>
                         </div>
 
-                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[400px] overflow-y-auto">
+                        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                             <Table>
                                 <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-700">
                                     <TableRow>
@@ -254,13 +258,13 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                                     onCheckedChange={() => toggleSelect(tx.tempId)}
                                                 />
                                             </TableCell>
-                                            <TableCell className="text-sm">
+                                            <TableCell className="text-sm whitespace-nowrap">
                                                 {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
                                             </TableCell>
-                                            <TableCell className="text-sm font-medium max-w-[200px] truncate">
+                                            <TableCell className="text-sm font-medium min-w-[150px] max-w-[200px] truncate">
                                                 {tx.description}
                                             </TableCell>
-                                            <TableCell className={tx.is_income ? 'text-emerald-600' : 'text-red-600'}>
+                                            <TableCell className={cn(tx.is_income ? 'text-emerald-600' : 'text-red-600', "whitespace-nowrap")}>
                                                 {tx.is_income ? '+' : '-'}₦{tx.amount?.toLocaleString()}
                                             </TableCell>
                                             <TableCell>

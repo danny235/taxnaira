@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { format } from 'date-fns';
 import { Search, Edit2, Check, X, AlertTriangle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 export const categories = [
@@ -56,8 +55,6 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editCategory, setEditCategory] = useState('');
 
-    const supabase = createClient();
-
     const filtered = transactions.filter(tx =>
         tx.description?.toLowerCase().includes(search.toLowerCase()) ||
         tx.category?.toLowerCase().includes(search.toLowerCase())
@@ -67,16 +64,20 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
         const cat = categories.find(c => c.value === newCategory);
 
         try {
-            const { error } = await supabase.from('transactions').update({
-                category: newCategory,
-                is_income: cat?.isIncome || false,
-                manually_categorized: true
-            }).eq('id', txId);
+            const response = await fetch(`/api/user/transactions/${txId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    category: newCategory,
+                    is_income: cat?.isIncome || false,
+                    manually_categorized: true
+                })
+            });
 
-            if (error) throw error;
-
-            // Audit log (optional, but good practice if table exists)
-            // await supabase.from('audit_logs').insert({...})
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to update category');
+            }
 
             toast.success("Category updated");
             setEditingId(null);

@@ -91,27 +91,51 @@ export default function AdminPage() {
     }, [settings]);
 
     const fetchUsers = async () => {
-        // Logic depends on if we have a public 'users' table synced with auth
-        // Usually supabase auth users are not directly queryable by client unless using edge function
-        // We will look for 'users' table as the source of truth
-        const { data } = await supabase.from('users').select('*');
-        if (data) setUsers(data);
+        try {
+            const res = await fetch('/api/admin/users');
+            if (res.ok) {
+                const data = await res.json();
+                setUsers(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch users:', error);
+        }
     };
 
     const fetchBrackets = async () => {
-        const { data } = await supabase.from('tax_brackets').select('*').eq('tax_year', currentYear);
-        if (data) setTaxBrackets(data);
+        try {
+            const res = await fetch(`/api/admin/tax-brackets?year=${currentYear}`);
+            if (res.ok) {
+                const data = await res.json();
+                setTaxBrackets(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch brackets:', error);
+        }
     };
 
     const fetchSettings = async () => {
-        const { data } = await supabase.from('tax_settings').select('*').eq('tax_year', currentYear).single();
-        if (data) setSettings(data);
+        try {
+            const res = await fetch(`/api/admin/settings?year=${currentYear}`);
+            if (res.ok) {
+                const data = await res.json();
+                setSettings(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch settings:', error);
+        }
     };
 
     const fetchLogs = async () => {
-        // Assuming 'audit_logs' table exists
-        const { data } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(50);
-        if (data) setAuditLogs(data);
+        try {
+            const res = await fetch('/api/admin/audit-logs');
+            if (res.ok) {
+                const data = await res.json();
+                setAuditLogs(data);
+            }
+        } catch (error) {
+            console.error('Failed to fetch logs:', error);
+        }
     };
 
     const handleSaveBracket = async () => {
@@ -126,11 +150,22 @@ export default function AdminPage() {
         };
 
         try {
+            let res;
             if (editingBracket) {
-                await supabase.from('tax_brackets').update(data).eq('id', editingBracket.id);
+                res = await fetch('/api/admin/tax-brackets', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...data, id: editingBracket.id }),
+                });
             } else {
-                await supabase.from('tax_brackets').insert(data);
+                res = await fetch('/api/admin/tax-brackets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
             }
+
+            if (!res.ok) throw new Error('Failed to save');
             toast.success('Tax bracket saved');
             setShowBracketDialog(false);
             setEditingBracket(null);
@@ -145,7 +180,8 @@ export default function AdminPage() {
 
     const handleDeleteBracket = async (id: string) => {
         if (confirm("Are you sure?")) {
-            await supabase.from('tax_brackets').delete().eq('id', id);
+            const res = await fetch(`/api/admin/tax-brackets?id=${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete');
             fetchBrackets();
             toast.success('Tax bracket deleted');
         }
@@ -160,11 +196,13 @@ export default function AdminPage() {
         };
 
         try {
-            if (settings?.id) {
-                await supabase.from('tax_settings').update(data).eq('id', settings.id);
-            } else {
-                await supabase.from('tax_settings').insert(data);
-            }
+            const res = await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...data, id: settings?.id }),
+            });
+
+            if (!res.ok) throw new Error('Failed to save');
             toast.success('Settings saved');
             fetchSettings();
         } catch (error: any) {

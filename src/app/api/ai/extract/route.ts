@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { extractDataFromStatement } from "@/lib/gemini";
+import { extractDataFromStatement } from "@/lib/openai";
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,6 +63,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ transactions });
   } catch (error: any) {
     console.error("AI Preview API Error:", error);
+
+    if (error.status === 429 || error.message?.includes("429")) {
+      return NextResponse.json(
+        { error: "AI service is busy. Please try again in 30 seconds." },
+        { status: 429 },
+      );
+    }
+
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

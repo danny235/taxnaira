@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { useAuth } from '@/components/auth-provider'
-import { createClient } from '@/lib/supabase/client'
+
 
 // Components (assume these are ported/available in @/components/dashboard)
 // You might need to adjust imports if you haven't fixed the files yet
@@ -23,14 +23,15 @@ import Disclaimer from '@/components/common/disclaimer' // Need to check if this
 export default function Dashboard() {
     const currentYear = new Date().getFullYear()
     const { user } = useAuth()
-    const supabase = createClient()
+
 
     const { data: profile } = useQuery({
         queryKey: ['profile', user?.id],
         queryFn: async () => {
             if (!user?.id) return null
-            const { data } = await supabase.from('users').select('*').eq('id', user.id).single()
-            return data
+            const res = await fetch('/api/user/profile')
+            if (!res.ok) return null
+            return res.json()
         },
         enabled: !!user?.id,
     })
@@ -40,14 +41,9 @@ export default function Dashboard() {
         queryKey: ['transactions', user?.id],
         queryFn: async () => {
             if (!user?.id) return []
-            const { data } = await supabase
-                .from('transactions')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('tax_year', currentYear)
-                .order('date', { ascending: false })
-                .limit(100)
-            return data || []
+            const res = await fetch(`/api/user/transactions?year=${currentYear}&limit=100`)
+            if (!res.ok) return []
+            return res.json()
         },
         enabled: !!user?.id,
     })
@@ -56,13 +52,9 @@ export default function Dashboard() {
         queryKey: ['taxCalculation', user?.id],
         queryFn: async () => {
             if (!user?.id) return null
-            const { data } = await supabase
-                .from('tax_calculations')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('tax_year', currentYear)
-                .single()
-            return data
+            const res = await fetch(`/api/user/tax-calculation?year=${currentYear}`)
+            if (!res.ok) return null
+            return res.json()
         },
         enabled: !!user?.id,
     })
@@ -70,13 +62,9 @@ export default function Dashboard() {
     const { data: settings } = useQuery({
         queryKey: ['taxSettings'],
         queryFn: async () => {
-            const { data } = await supabase
-                .from('tax_settings')
-                .select('*')
-                .eq('tax_year', currentYear)
-                .eq('is_active', true)
-                .single()
-            return data || { exemption_threshold: 800000 }
+            const res = await fetch(`/api/user/tax-settings?year=${currentYear}`)
+            if (!res.ok) return { exemption_threshold: 800000 }
+            return res.json()
         },
     })
 
