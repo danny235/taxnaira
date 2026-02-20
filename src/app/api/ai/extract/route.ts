@@ -75,6 +75,13 @@ export async function POST(req: NextRequest) {
       fileContent = await fileBlob.text();
     }
 
+    // 3. Fetch user profile for context in AI calls
+    const { data: profile } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
     let transactions = [];
     const fileName = fileRecord.file_name.toLowerCase();
     const isExcel =
@@ -82,7 +89,7 @@ export async function POST(req: NextRequest) {
       fileName.endsWith(".xls") ||
       fileName.endsWith(".csv");
 
-    // 3. Try Specialized Parsers First (Free)
+    // 4. Try Specialized Parsers First (Free)
     try {
       if (isExcel) {
         console.log("📊 Attempting Excel/CSV extraction...");
@@ -168,13 +175,14 @@ export async function POST(req: NextRequest) {
                 console.log("📄 Using Gemini native PDF buffer extraction...");
                 const { extractDataFromPdfBuffer } =
                   await import("@/lib/gemini");
-                transactions = await extractDataFromPdfBuffer(buffer);
+                transactions = await extractDataFromPdfBuffer(buffer, profile);
               } else {
                 const { extractDataFromStatement: extractWithGemini } =
                   await import("@/lib/gemini");
                 transactions = await extractWithGemini(
                   fileContent,
                   fileRecord.file_type,
+                  profile,
                 );
               }
               console.log(
@@ -215,6 +223,7 @@ export async function POST(req: NextRequest) {
             amount: tx.amount,
             is_income: tx.is_income,
           })),
+          profile, // Pass profile as userContext
         );
 
         // Merge refined categories back into transactions
@@ -222,6 +231,10 @@ export async function POST(req: NextRequest) {
           ...tx,
           category: refined[i]?.category || tx.category,
           ai_confidence: refined[i]?.ai_confidence ?? 0,
+          reasoning:
+            refined[i]?.reasoning ||
+            (tx as any).reasoning ||
+            "Categorized based on rules",
         }));
         console.log("✨ Categorization refinement complete.");
       } catch (refineError) {

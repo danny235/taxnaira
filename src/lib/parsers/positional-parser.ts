@@ -14,6 +14,8 @@ export async function getFullTextPDF(buffer: Buffer): Promise<string> {
   });
 }
 
+import { robustParseDate } from "../utils/date-utils";
+
 /**
  * PDF Positional Parser
  * Uses X/Y coordinates to group text into rows and identify columns.
@@ -60,9 +62,24 @@ function processRows(rows: any): any[] {
     return rows[y].sort((a: any, b: any) => a.x - b.x);
   });
 
+  // 1. Try to detect a "Statement Year" from the header (first 50 rows)
+  let contextYear: number | undefined;
+  const yearRegex = /\b(202[0-9])\b/; // Matches 2020-2029
+  for (let i = 0; i < Math.min(parsedRows.length, 50); i++) {
+    const rowText = parsedRows[i].map((item: any) => item.text).join(" ");
+    const yearMatch = rowText.match(yearRegex);
+    if (yearMatch) {
+      contextYear = parseInt(yearMatch[1]);
+      console.log(
+        `📅 Detected Statement Year: ${contextYear} from header: "${rowText.substring(0, 50)}..."`,
+      );
+      break;
+    }
+  }
+
   // Patterns for detection
   const dateRegex =
-    /(\d{1,2}[-/ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})[-/ ]\d{2,4})/i;
+    /(\d{1,2}[-/.\ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})(?:[-/.\ ]\d{2,4})?)/i;
 
   let rejectedCount = 0;
   parsedRows.forEach((rowItems, idx) => {
@@ -122,7 +139,7 @@ function processRows(rows: any): any[] {
 
         if (val > 0 && description.length > 2) {
           transactions.push({
-            date: parseDate(dateMatch[0]),
+            date: robustParseDate(dateMatch[0], contextYear),
             description,
             amount: val,
             is_income: detectIncome(rowText, description),
@@ -150,17 +167,6 @@ function processRows(rows: any): any[] {
   });
 
   return transactions;
-}
-
-// Re-use logic from generic-parser or export it from there
-function parseDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return new Date().toISOString();
-    return d.toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
 }
 
 function detectIncome(line: string, description: string): boolean {
@@ -202,14 +208,14 @@ function categorize(description: string, isIncome: boolean): string {
       lower.includes("sales") ||
       lower.includes("business")
     )
-      return "business_revenue";
+      return "business revenue";
     if (
       lower.includes("fiverr") ||
       lower.includes("upwork") ||
       lower.includes("freelance")
     )
-      return "freelance_income";
-    return "other_income";
+      return "freelance income";
+    return "other income";
   }
 
   if (
@@ -225,7 +231,7 @@ function categorize(description: string, isIncome: boolean): string {
   )
     return "food";
   if (lower.includes("rent")) return "rent";
-  if (lower.includes("pension")) return "pension_contributions";
+  if (lower.includes("pension")) return "pension contributions";
   if (
     lower.includes("airtime") ||
     lower.includes("data") ||

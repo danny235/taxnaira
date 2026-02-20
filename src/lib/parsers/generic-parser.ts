@@ -1,3 +1,5 @@
+import { robustParseDate } from "../utils/date-utils";
+
 /**
  * Generic Rule-Based Parser
  * Attempts to extract transactions from raw text using patterns common in Nigerian bank statements.
@@ -6,9 +8,22 @@ export async function parseGenericStatement(text: string) {
   const lines = text.split("\n");
   const transactions: any[] = [];
 
+  // 1. Try to detect a "Statement Year" from the header (first 50 lines)
+  let contextYear: number | undefined;
+  const yearRegexFallback = /\b(202[0-9])\b/; // Matches 2020-2029
+  for (let i = 0; i < Math.min(lines.length, 50); i++) {
+    const yearMatch = lines[i].match(yearRegexFallback);
+    if (yearMatch) {
+      contextYear = parseInt(yearMatch[1]);
+      console.log(`📅 Detected Statement Year (Generic): ${contextYear}`);
+      break;
+    }
+  }
+
   // Pattern for Date: DD-MMM-YYYY or DD/MM/YYYY or DD MMM YYYY
+  // Updated to make year optional so we can match "15-Mar" and use contextYear
   const dateRegex =
-    /(\d{1,2}[-/ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})[-/ ]\d{2,4})/i;
+    /(\d{1,2}[-/.\ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})(?:[-/.\ ]\d{2,4})?)/i;
 
   // Pattern for Amount: support currency symbols and multiple decimal types
   const amountRegex =
@@ -35,7 +50,7 @@ export async function parseGenericStatement(text: string) {
 
         if (amount > 0 && description.length > 3) {
           transactions.push({
-            date: parseDate(date),
+            date: robustParseDate(date, contextYear),
             description: description,
             amount: amount,
             is_income: detectIncome(line, description),
@@ -48,16 +63,6 @@ export async function parseGenericStatement(text: string) {
   });
 
   return transactions;
-}
-
-function parseDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return new Date().toISOString();
-    return d.toISOString();
-  } catch {
-    return new Date().toISOString();
-  }
 }
 
 function detectIncome(line: string, description: string): boolean {
@@ -100,14 +105,14 @@ function categorize(description: string, isIncome: boolean): string {
       lower.includes("sales") ||
       lower.includes("business")
     )
-      return "business_revenue";
+      return "business revenue";
     if (
       lower.includes("fiverr") ||
       lower.includes("upwork") ||
       lower.includes("freelance")
     )
-      return "freelance_income";
-    return "other_income";
+      return "freelance income";
+    return "other income";
   }
 
   if (
@@ -123,7 +128,7 @@ function categorize(description: string, isIncome: boolean): string {
   )
     return "food";
   if (lower.includes("rent")) return "rent";
-  if (lower.includes("pension")) return "pension_contributions";
+  if (lower.includes("pension")) return "pension contributions";
   if (
     lower.includes("airtime") ||
     lower.includes("data") ||

@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { robustParseDate } from "../utils/date-utils";
 
 /**
  * Excel/CSV Parser
@@ -8,13 +9,32 @@ export async function parseExcelStatement(buffer: Buffer) {
   const workbook = XLSX.read(buffer, { type: "buffer" });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
 
-  // Convert to JSON
-  const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  if (rows.length === 0) return [];
 
   const transactions: any[] = [];
 
-  // Heuristic: Find the header row
+  // 1. Try to detect a "Statement Year" from the first 20 rows
+  let contextYear: number | undefined;
+  const yearRegex = /\b(202[0-9])\b/; // Matches 2020-2029
+  for (let r = 0; r < Math.min(rows.length, 20); r++) {
+    for (let c = 0; c < rows[r].length; c++) {
+      const cellVal = rows[r][c]?.toString() || "";
+      const match = cellVal.match(yearRegex);
+      if (match) {
+        contextYear = parseInt(match[1]);
+        console.log(
+          `📅 Detected Statement Year (Excel): ${contextYear} from cell [${r},${c}]: "${cellVal}"`,
+        );
+        break;
+      }
+    }
+    if (contextYear) break;
+  }
+
+  // Find header row and mapping
+  let headerRowIndex = -1;
   // Usually contains "Date", "Amount", "Description/Narration"
   let headerIdx = -1;
   const headerKeywords = [
@@ -194,7 +214,7 @@ export async function parseExcelStatement(buffer: Buffer) {
         `✅ Extracted row ${idx}: ${dateRaw} | ${description} | ${isIncome ? "CR" : "DR"} ${amount}`,
       );
       transactions.push({
-        date: parseExcelDate(dateRaw),
+        date: parseExcelDate(dateRaw, contextYear),
         description: description,
         amount: amount,
         is_income: isIncome, // isIncome is already determined by credit/debit columns or detectIncome fallback
@@ -223,15 +243,14 @@ function parseAmount(val: any): number {
   return Math.abs(parseFloat(cleaned));
 }
 
-function parseExcelDate(val: any): string {
+function parseExcelDate(val: any, contextYear?: number): string {
   if (val instanceof Date) return val.toISOString();
   if (typeof val === "number") {
     // Excel base date is Dec 30, 1899
     const d = new Date(Math.round((val - 25569) * 86400 * 1000));
     return d.toISOString();
   }
-  const d = new Date(val);
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  return robustParseDate(val?.toString(), contextYear);
 }
 
 function detectIncome(
@@ -269,14 +288,14 @@ function categorize(description: string, isIncome: boolean): string {
       lower.includes("sales") ||
       lower.includes("business")
     )
-      return "business_revenue";
+      return "business revenue";
     if (
       lower.includes("fiverr") ||
       lower.includes("upwork") ||
       lower.includes("freelance")
     )
-      return "freelance_income";
-    return "other_income";
+      return "freelance income";
+    return "other income";
   }
 
   if (
@@ -292,7 +311,7 @@ function categorize(description: string, isIncome: boolean): string {
   )
     return "food";
   if (lower.includes("rent") || lower.includes("lease")) return "rent";
-  if (lower.includes("pension")) return "pension_contributions";
+  if (lower.includes("pension")) return "pension contributions";
   if (
     lower.includes("mtn") ||
     lower.includes("glo") ||

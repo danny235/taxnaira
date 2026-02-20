@@ -32,22 +32,60 @@ async function retry<T>(
   }
 }
 
-export async function classifyTransaction(description: string) {
+export async function classifyTransaction(
+  description: string,
+  userContext?: any,
+) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  const contextStr = userContext
+    ? `
+    USER CONTEXT:
+    - Employment Type: ${userContext.employment_type || "Unknown"}
+    - State: ${userContext.state_of_residence || "Unknown"}
+    - Receives Foreign Income: ${userContext.receives_foreign_income ? "Yes" : "No"}
+  `
+    : "";
 
   const prompt = `
     You are a Nigerian tax expert assistant. Your task is to categorize a financial transaction based on its description.
-    The categories are:
-    - 'salary': Regular employment income.
-    - 'business_revenue': Income from business operations or sales.
-    - 'freelance_income': Income from freelance work or gig economy.
-    - 'foreign_income': Income received in foreign currency (USD, GBP, etc).
-    - 'capital_gains': Profit from sale of assets.
-    - 'crypto_sale': Profit from cryptocurrency sales.
-    - 'expense': Any business or deductible expense.
-    - 'personal_expense': Non-deductible personal spending.
-    - 'pension_contributions': Employee contributions to pension.
-    - 'nhf_contributions': National Housing Fund contributions.
+    
+    ${contextStr}
+
+    CATEGORIES & GUIDELINES:
+    Income:
+    - 'salary': Regular pay from an employer (e.g., "NET PAY", "SALARY", "PAYROLL").
+    - 'business revenue': Sales, service fees, or client payments for a business owner/freelancer.
+    - 'freelance income': Gig work if specifically identifiable (e.g., "UPWORK", "FIVERR").
+    - 'foreign income': Payments arriving in USD/GBP/EUR or from foreign entities.
+    - 'capital gains': Profit from selling stock, property, or other assets.
+    - 'crypto sale': Specific proceeds from selling cryptocurrency.
+    - 'other income': Interest, dividends, or miscellaneous business-related inflows.
+
+    Deductible Expenses (Business-related):
+    - 'rent': Business premises rent or office lease.
+    - 'utilities': Electricity (IKEDC/PHCN), Internet (Spectranet/Smile/MTN Data), Water.
+    - 'food': Business-related meals (not personal groceries).
+    - 'transportation': Fuel, Uber/Bolt/GIGM for business trips, vehicle maintenance.
+    - 'business expenses': Domain names, software (SaaS), office supplies, marketing.
+    - 'pension contributions': Statutory employee pension deductions.
+    - 'nhf contributions': National Housing Fund deductions.
+    - 'insurance': Business or health insurance premiums.
+    - 'transfers': Business-related transfers (e.g. to vendors).
+    - 'crypto purchase': Buying crypto for business purposes.
+    - 'miscellaneous': Other deductible operational costs.
+
+    Non-Deductible:
+    - 'personal expense': Private spending (e.g. Cinema, Personal gifts, family support).
+
+    FEW-SHOT EXAMPLES:
+    - "POS DEBIT: JUMIA" -> personal expense (likely shopping)
+    - "TRANSFER from OLUWASEUN" -> other income (or business revenue if user is business_owner)
+    - "AIRTIME TOP-UP: MTN" -> utilities
+    - "NET PAY SEP" -> salary
+    - "UBER TRIP" -> transportation
+    - "VAT ON FEE" -> miscellaneous
+    - "WHT ON DIVIDEND" -> other_income (tax credit)
 
     Transaction Description: "${description}"
 
@@ -79,18 +117,31 @@ export async function classifyTransaction(description: string) {
 export async function extractDataFromStatement(
   fileData: string,
   fileType: string,
+  userContext?: any,
 ) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+  const contextStr = userContext
+    ? `
+    USER CONTEXT:
+    - Employment Type: ${userContext.employment_type || "Unknown"}
+    - Sector/Business: ${userContext.employment_type === "salary_earner" ? "Employee" : "Entrepreneur"}
+    - Receives Foreign Income: ${userContext.receives_foreign_income ? "Yes" : "No"}
+  `
+    : "";
+
   const prompt = `
-    Analyze this ${fileType} bank statement or financial document content.
+    Analyze this ${fileType} bank statement or financial document content for a Nigerian user.
+    ${contextStr}
+
     Extract every transaction and return them as a JSON array of objects.
     Each object must have:
-    - date: (ISO 8601 format)
+    - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
     - description: (string)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Use the same categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, expense)
+    - category: (Categorize based on Nigerian tax logic: salary, business revenue, freelance income, foreign income, capital gains, crypto sale, expense, personal expense)
+    - reasoning: (string - why you chose this category)
 
     Content:
     ${fileData}
@@ -106,18 +157,32 @@ export async function extractDataFromStatement(
     throw error; // Rethrow to let the API know it failed
   }
 }
-export async function extractDataFromPdfBuffer(buffer: Buffer) {
+export async function extractDataFromPdfBuffer(
+  buffer: Buffer,
+  userContext?: any,
+) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
+  const contextStr = userContext
+    ? `
+    USER CONTEXT:
+    - Employment Type: ${userContext.employment_type || "Unknown"}
+    - Sector/Business: ${userContext.employment_type === "salary_earner" ? "Employee" : "Entrepreneur"}
+  `
+    : "";
+
   const prompt = `
-    Analyze this bank statement PDF.
+    Analyze this bank statement PDF for a Nigerian user.
+    ${contextStr}
+
     Extract every transaction and return them as a JSON array of objects.
     Each object must have:
-    - date: (ISO 8601 format)
+    - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
     - description: (string)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Use the same categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, expense)
+    - category: (Categorize based on Nigerian tax logic: salary, business revenue, freelance income, foreign income, capital gains, crypto sale, expense, personal expense)
+    - reasoning: (string - why you chose this category)
   `;
 
   try {
@@ -144,44 +209,56 @@ export async function extractDataFromPdfBuffer(buffer: Buffer) {
 
 export async function categorizeTransactionsBatch(
   transactions: { description: string; amount: number; is_income: boolean }[],
+  userContext?: any,
 ) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  const contextStr = userContext
+    ? `
+    USER CONTEXT:
+    - Employment Type: ${userContext.employment_type || "Unknown"}
+    - Sector/Business: ${userContext.employment_type === "salary_earner" ? "Employee" : "Entrepreneur"}
+    - Receives Foreign Income: ${userContext.receives_foreign_income ? "Yes" : "No"}
+  `
+    : "";
 
   const prompt = `
     You are a Nigerian tax expert assistant. Your task is to categorize a batch of financial transactions for a P&L statement.
     
+    ${contextStr}
+
     SYSTEM CATEGORIES:
     Income: 
-    - 'salary': Regular employment income.
-    - 'business_revenue': Income from business operations or sales.
-    - 'freelance_income': Income from freelance work or gig economy.
-    - 'foreign_income': Income received in foreign currency.
-    - 'capital_gains': Profit from sale of assets.
-    - 'crypto_sale': Profit from cryptocurrency sales.
-    - 'other_income': Any other business-related income.
+    - 'salary', 'business revenue', 'freelance income', 'foreign income', 'capital gains', 'crypto sale', 'other income'.
 
     Expenses:
-    - 'rent': Office/business rent.
-    - 'utilities': Business power, water, internet.
-    - 'food': Business meals/dining.
-    - 'transportation': Business travel or logistics.
-    - 'business_expenses': General operational expenses.
-    - 'pension_contributions': Employee pension.
-    - 'nhf_contributions': National Housing Fund.
-    - 'insurance': Business insurance.
-    - 'transfers': Money transfers (categorize based on context).
-    - 'crypto_purchase': Business crypto buys.
-    - 'miscellaneous': General deductible expenses.
-
-    For each transaction, determine the most likely category and provide a confidence score (0.0 to 1.0).
+    - 'rent': Business rent.
+    - 'utilities': Power, internet, data.
+    - 'food': Business meals.
+    - 'transportation': Uber, Fuel, Travel.
+    - 'business expenses': Operational costs.
+    - 'pension contributions': Pension.
+    - 'nhf contributions': National Housing Fund.
+    - 'insurance': Premiums.
+    - 'transfers': Vendor payments.
+    - 'crypto purchase': Crypto buys.
+    - 'personal expense': Private spending (cinema, lifestyle).
+    - 'miscellaneous': Other business costs.
     
+    GUIDELINES:
+    1. If user is a 'salary_earner', large transfers are likely personal or savings.
+    2. If user is a 'business_owner', most transfers to names are likely 'business expenses' or 'transfers'.
+    3. Look for "VAT", "Tax", "Fee" - these are usually 'miscellaneous' or tied to the service.
+    4. POS purchases are 'personal expense' unless specifically business-related (e.g. "OFFICE CREATIONS").
+
     TRANSACTIONS TO CATEGORIZE:
     ${JSON.stringify(transactions, null, 2)}
 
     Return ONLY a JSON array of objects in the same order, each with:
     {
       "category": "string",
-      "confidence": number
+      "confidence": number,
+      "reasoning": "string"
     }
   `;
 
@@ -197,6 +274,7 @@ export async function categorizeTransactionsBatch(
         categories[i]?.category ||
         (tx.is_income ? "other_income" : "miscellaneous"),
       ai_confidence: categories[i]?.confidence || 0,
+      reasoning: categories[i]?.reasoning || "Categorized based on description",
     }));
   } catch (error) {
     console.error("Gemini Batch Categorization Error:", error);
@@ -204,6 +282,7 @@ export async function categorizeTransactionsBatch(
       ...tx,
       category: tx.is_income ? "other_income" : "miscellaneous",
       ai_confidence: 0,
+      reasoning: "Classification failed",
     }));
   }
 }

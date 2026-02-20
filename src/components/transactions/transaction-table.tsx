@@ -14,22 +14,22 @@ import { toast } from 'sonner';
 
 export const categories = [
     { value: 'salary', label: 'Salary', isIncome: true },
-    { value: 'business_revenue', label: 'Business Revenue', isIncome: true },
-    { value: 'freelance_income', label: 'Freelance Income', isIncome: true },
-    { value: 'foreign_income', label: 'Foreign Income', isIncome: true },
-    { value: 'capital_gains', label: 'Capital Gains', isIncome: true },
-    { value: 'crypto_sale', label: 'Crypto Sale', isIncome: true },
-    { value: 'other_income', label: 'Other Income', isIncome: true },
+    { value: 'business revenue', label: 'Business Revenue', isIncome: true },
+    { value: 'freelance income', label: 'Freelance Income', isIncome: true },
+    { value: 'foreign income', label: 'Foreign Income', isIncome: true },
+    { value: 'capital gains', label: 'Capital Gains', isIncome: true },
+    { value: 'crypto sale', label: 'Crypto Sale', isIncome: true },
+    { value: 'other income', label: 'Other Income', isIncome: true },
     { value: 'rent', label: 'Rent', isIncome: false },
     { value: 'utilities', label: 'Utilities', isIncome: false },
     { value: 'food', label: 'Food', isIncome: false },
     { value: 'transportation', label: 'Transportation', isIncome: false },
-    { value: 'business_expenses', label: 'Business Expenses', isIncome: false },
-    { value: 'pension_contributions', label: 'Pension', isIncome: false },
-    { value: 'nhf_contributions', label: 'NHF', isIncome: false },
+    { value: 'business expenses', label: 'Business Expenses', isIncome: false },
+    { value: 'pension contributions', label: 'Pension', isIncome: false },
+    { value: 'nhf contributions', label: 'NHF', isIncome: false },
     { value: 'insurance', label: 'Insurance', isIncome: false },
     { value: 'transfers', label: 'Transfers', isIncome: false },
-    { value: 'crypto_purchase', label: 'Crypto Purchase', isIncome: false },
+    { value: 'crypto purchase', label: 'Crypto Purchase', isIncome: false },
     { value: 'miscellaneous', label: 'Miscellaneous', isIncome: false },
 ];
 
@@ -228,7 +228,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                         </Select>
                                     ) : (
                                         <Badge variant={tx.is_income ? "default" : "secondary"} className={tx.is_income ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}>
-                                            {categories.find(c => c.value === tx.category)?.label || tx.category || 'Uncategorized'}
+                                            {categories.find(c => c.value === tx.category)?.label || tx.category?.replace(/_/g, ' ') || 'Uncategorized'}
                                         </Badge>
                                     )}
                                 </TableCell>
