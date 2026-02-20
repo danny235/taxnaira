@@ -28,7 +28,9 @@ export async function parsePdfWithOcr(buffer: Buffer): Promise<string> {
     // 2. Convert PDF to Image (Mac-specific bridge using qlmanage for now)
     // Note: This only gets the first page thumbnail.
     // For a full solution we'd want a more robust PDF renderer.
-    console.log("📸 Converting PDF to image (Page 1)...");
+    console.log(
+      "📸 Converting PDF to image (Note: Currently only Page 1 is supported via this method)...",
+    );
     await execPromise(`qlmanage -t -s 2000 -o "${tempDir}" "${pdfPath}"`);
 
     const expectedImagePath = path.join(tempDir, "input.pdf.png");
