@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { format } from 'date-fns';
-import { Search, Edit2, Check, X, AlertTriangle } from 'lucide-react';
+import { Search, Edit2, Check, X, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const categories = [
@@ -87,6 +87,26 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
         }
     };
 
+    const handleDelete = async (txId: string) => {
+        if (!confirm("Are you sure you want to delete this transaction?")) return;
+
+        try {
+            const response = await fetch(`/api/user/transactions/${txId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to delete transaction');
+            }
+
+            toast.success("Transaction deleted");
+            if (onUpdate) onUpdate();
+        } catch (error: any) {
+            toast.error("Failed to delete transaction: " + error.message);
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="relative">
@@ -161,20 +181,27 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    {editingId === tx.id ? (
-                                        <div className="flex gap-1">
-                                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleCategoryChange(tx.id, editCategory)}>
-                                                <Check className="w-4 h-4 text-emerald-600" />
-                                            </Button>
-                                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(null)}>
-                                                <X className="w-4 h-4 text-red-600" />
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingId(tx.id); setEditCategory(tx.category || ''); }}>
-                                            <Edit2 className="w-4 h-4 text-slate-400" />
-                                        </Button>
-                                    )}
+                                    <div className="flex items-center gap-1">
+                                        {editingId === tx.id ? (
+                                            <>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleCategoryChange(tx.id, editCategory)}>
+                                                    <Check className="w-4 h-4 text-emerald-600" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(null)}>
+                                                    <X className="w-4 h-4 text-red-600" />
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-emerald-600" onClick={() => { setEditingId(tx.id); setEditCategory(tx.category || ''); }}>
+                                                    <Edit2 className="w-4 h-4" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(tx.id)}>
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         )) : (

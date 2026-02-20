@@ -1353,6 +1353,9 @@
   resolved "https://registry.npmjs.org/@unrs/resolver-binding-darwin-x64/-/resolver-binding-darwin-x64-1.11.1.tgz"
   integrity sha512-cFzP7rWKd3lZaCsDze07QX1SC24lO8mPty9vdP+YVa3MGdVgPmFc59317b2ioXtgCMKGiCLxJ4HQs62oz6GfRQ==
 
+"@xmldom/xmldom@^0.8.10":
+  version "0.8.10"
+
 acorn-jsx@^5.3.2:
   version "5.3.2"
   resolved "https://registry.npmjs.org/acorn-jsx/-/acorn-jsx-5.3.2.tgz"
@@ -3243,12 +3246,26 @@ pdf-parse@^2.4.5:
     "@napi-rs/canvas" "0.1.80"
     pdfjs-dist "5.4.296"
 
+pdf2json@3.1.4:
+  version "3.1.4"
+  resolved "https://registry.npmjs.org/pdf2json/-/pdf2json-3.1.4.tgz"
+  integrity sha512-rS+VapXpXZr+5lUpHmRh3ugXdFXp24p1RyG24yP1DMpqP4t0mrYNGpLtpSbWD42PnQ59GIXofxF+yWb7M+3THg==
+  dependencies:
+    "@xmldom/xmldom" "^0.8.10"
+
 pdfjs-dist@5.4.296:
   version "5.4.296"
   resolved "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-5.4.296.tgz"
   integrity sha512-DlOzet0HO7OEnmUmB6wWGJrrdvbyJKftI1bhMitK7O2N8W2gc757yyYBbINy9IDafXAV9wmKr9t7xsTaNKRG5Q==
   optionalDependencies:
     "@napi-rs/canvas" "^0.1.80"
+
+pdfreader@^3.0.8:
+  version "3.0.8"
+  resolved "https://registry.npmjs.org/pdfreader/-/pdfreader-3.0.8.tgz"
+  integrity sha512-95X/7bIYfetvu2J12i1MwPIqMo6niWn2fcZU64UJh7agV7/tKNOhp01z7WVAcblpY+bosvwIZG18Pku9VpMulQ==
+  dependencies:
+    pdf2json "3.1.4"
 
 picocolors@^1.0.0, picocolors@^1.1.1:
   version "1.1.1"

@@ -1,0 +1,217 @@
+import { PdfReader } from "pdfreader";
+
+/**
+ * Simple text extractor using pdfreader
+ */
+export async function getFullTextPDF(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let text = "";
+    new PdfReader().parseBuffer(buffer, (err: any, item: any) => {
+      if (err) reject(err);
+      else if (!item) resolve(text);
+      else if (item.text) text += item.text + " ";
+    });
+  });
+}
+
+/**
+ * PDF Positional Parser
+ * Uses X/Y coordinates to group text into rows and identify columns.
+ */
+export async function parsePositionalPDF(buffer: Buffer): Promise<any[]> {
+  return new Promise((resolve, reject) => {
+    const rows: any = {}; // { y: [{ x, text }] }
+    const pages: any[] = [];
+    let currentPage: any = {};
+
+    new PdfReader().parseBuffer(buffer, (err: any, item: any) => {
+      if (err) reject(err);
+      else if (!item) {
+        // End of document
+        pages.push(processRows(currentPage));
+        resolve(pages.flat());
+      } else if (item.page) {
+        // New page
+        if (Object.keys(currentPage).length > 0) {
+          pages.push(processRows(currentPage));
+        }
+        currentPage = {};
+      } else if (item.text) {
+        // Accumulate text items by row (Y coordinate)
+        // Round Y to handle slight alignment variations
+        const y = Math.round(item.y * 10) / 10;
+        if (!currentPage[y]) currentPage[y] = [];
+        currentPage[y].push({ x: item.x, text: item.text });
+      }
+    });
+  });
+}
+
+function processRows(rows: any): any[] {
+  const transactions: any[] = [];
+
+  // Sort Y coordinates to process page top-to-bottom
+  const sortedY = Object.keys(rows)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  const parsedRows = sortedY.map((y) => {
+    // Sort items in row by X coordinate
+    return rows[y].sort((a: any, b: any) => a.x - b.x);
+  });
+
+  // Patterns for detection
+  const dateRegex =
+    /(\d{1,2}[-/ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})[-/ ]\d{2,4})/i;
+
+  let rejectedCount = 0;
+  parsedRows.forEach((rowItems, idx) => {
+    const rowText = rowItems.map((i: any) => i.text).join(" ");
+    const dateMatch = rowText.match(dateRegex);
+
+    if (dateMatch) {
+      // Look for columns that look like amounts
+      const amounts = rowItems.filter((i: any) => {
+        // Remove currency, spaces, and any non-numeric chars except , and .
+        const cleanText = i.text.replace(/[₦$£€\s\(\)]/g, "").replace(/,/g, "");
+        return /^-?\d+(\.\d+)?$/.test(cleanText);
+      });
+
+      console.log(
+        `📍 PDF Row: "${rowText.substring(0, 70)}${rowText.length > 70 ? "..." : ""}" | Amounts: ${amounts.length}`,
+      );
+
+      if (amounts.length >= 1) {
+        let amountItem = amounts[0];
+
+        const descriptionParts = rowItems.filter(
+          (i: any) => i.x > rowItems[0].x + 0.5 && i.x < amountItem.x,
+        );
+
+        let description = descriptionParts
+          .map((i: any) => i.text)
+          .join(" ")
+          .trim();
+
+        // Multi-line support
+        let nextIdx = idx + 1;
+        while (nextIdx < parsedRows.length) {
+          const nextRowItems = parsedRows[nextIdx];
+          const nextRowText = nextRowItems.map((i: any) => i.text).join(" ");
+          const hasDate = dateRegex.test(nextRowText);
+          const nextAmounts = nextRowItems.filter((i: any) => {
+            const clean = i.text.replace(/[₦$£€\s\(\)]/g, "").replace(/,/g, "");
+            return /^-?\d+(\.\d+)?$/.test(clean);
+          });
+
+          if (
+            !hasDate &&
+            nextAmounts.length === 0 &&
+            nextRowText.trim().length > 0
+          ) {
+            description += " " + nextRowText.trim();
+            nextIdx++;
+          } else {
+            break;
+          }
+        }
+
+        const val = Math.abs(
+          parseFloat(amountItem.text.replace(/[₦$£€,\s\(\)]/g, "")),
+        );
+
+        if (val > 0 && description.length > 2) {
+          transactions.push({
+            date: parseDate(dateMatch[0]),
+            description,
+            amount: val,
+            is_income: detectIncome(rowText, description),
+            category: categorize(description),
+            ai_confidence: 0.6,
+          });
+          if (transactions.length < 5)
+            console.log(
+              `✅ Extracted: ${dateMatch[0]} | ${description} | ₦${val}`,
+            );
+        } else if (rejectedCount < 5) {
+          console.log(
+            `❌ Rejected (low value/desc): "${description}" | ₦${val}`,
+          );
+          rejectedCount++;
+        }
+      } else if (rejectedCount < 5) {
+        console.log(`❌ Rejected (no amounts): "${rowText.substring(0, 70)}"`);
+        rejectedCount++;
+      }
+    }
+  });
+
+  return transactions;
+}
+
+// Re-use logic from generic-parser or export it from there
+function parseDate(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return new Date().toISOString();
+    return d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+function detectIncome(line: string, description: string): boolean {
+  const lower = (line + " " + description).toLowerCase();
+  const incomeKeywords = [
+    "credit",
+    "cr",
+    "deposit",
+    "salary",
+    "transfer from",
+    "inward",
+  ];
+  const expenseKeywords = [
+    "debit",
+    "dr",
+    "withdrawal",
+    "transfer to",
+    "payment to",
+    "pos",
+    "atm",
+  ];
+
+  if (line.includes(" CR ") || line.endsWith("CR")) return true;
+  if (line.includes(" DR ") || line.endsWith("DR")) return false;
+
+  for (const kw of incomeKeywords) if (lower.includes(kw)) return true;
+  for (const kw of expenseKeywords) if (lower.includes(kw)) return false;
+
+  return false;
+}
+
+function categorize(description: string): string {
+  const lower = description.toLowerCase();
+  if (lower.includes("salary") || lower.includes("payroll")) return "salary";
+  if (
+    lower.includes("uber") ||
+    lower.includes("bolt") ||
+    lower.includes("transport")
+  )
+    return "transportation";
+  if (
+    lower.includes("restaurant") ||
+    lower.includes("eatery") ||
+    lower.includes("food")
+  )
+    return "food";
+  if (lower.includes("rent")) return "rent";
+  if (lower.includes("pension")) return "pension_contributions";
+  if (
+    lower.includes("airtime") ||
+    lower.includes("data") ||
+    lower.includes("mtn") ||
+    lower.includes("glo")
+  )
+    return "utilities";
+  return "expense";
+}

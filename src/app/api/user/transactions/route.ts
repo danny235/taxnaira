@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
     // Add user_id to each transaction and map source_file_id to file_id
     const records = transactions.map((tx: any) => {
-      const { source_file_id, ...rest } = tx;
+      const { source_file_id, ai_confidence, ...rest } = tx;
       return {
         ...rest,
         user_id: user.id,

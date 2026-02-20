@@ -60,28 +60,13 @@ export async function POST(req: NextRequest) {
       fileRecord.file_name.toLowerCase().endsWith(".pdf")
     ) {
       try {
-        const pdfImport = await import("pdf-parse");
-        // pdf-parse can be exported as a function, default object, or nested.
-        const pdf =
-          typeof pdfImport === "function"
-            ? pdfImport
-            : (pdfImport as any).default || pdfImport;
-
+        const { getFullTextPDF } =
+          await import("@/lib/parsers/positional-parser");
         const buffer = Buffer.from(await fileBlob.arrayBuffer());
-
-        if (typeof pdf === "function") {
-          const data = await pdf(buffer);
-          fileContent = data.text;
-          console.log(
-            `📄 PDF text extracted successfully (${fileContent.length} chars)`,
-          );
-        } else {
-          console.error(
-            "pdf-parse is not a function after import:",
-            typeof pdf,
-          );
-          throw new Error("PDF parser initialization failed");
-        }
+        fileContent = await getFullTextPDF(buffer);
+        console.log(
+          `📄 PDF text extracted successfully via pdfreader (${fileContent.length} chars)`,
+        );
       } catch (pdfError) {
         console.error("PDF Parsing Error:", pdfError);
         fileContent = await fileBlob.text(); // Fallback to raw text
@@ -112,13 +97,34 @@ export async function POST(req: NextRequest) {
         console.log("🔍 Attempting rule-based extraction...");
         const { parseGenericStatement } =
           await import("@/lib/parsers/generic-parser");
-        const ruleResults = await parseGenericStatement(fileContent);
 
-        if (ruleResults && ruleResults.length > 0) {
+        // Try positional parser first for PDFs as it's more accurate
+        if (fileName.endsWith(".pdf")) {
+          console.log("📍 Attempting positional PDF extraction...");
+          const { parsePositionalPDF } =
+            await import("@/lib/parsers/positional-parser");
+          const buffer = Buffer.from(await fileBlob.arrayBuffer());
+          const positionalResults = await parsePositionalPDF(buffer);
+
+          if (positionalResults && positionalResults.length > 0) {
+            console.log(
+              `✅ Positional extraction successful: ${positionalResults.length} transactions found.`,
+            );
+            transactions = positionalResults;
+          } else {
+            console.log(
+              "⚠️ Positional extraction returned 0. Trying generic text parsing...",
+            );
+            transactions = await parseGenericStatement(fileContent);
+          }
+        } else {
+          transactions = await parseGenericStatement(fileContent);
+        }
+
+        if (transactions && transactions.length > 0) {
           console.log(
-            `✅ Rule-based extraction successful: ${ruleResults.length} transactions found.`,
+            `✅ Rule-based extraction successful: ${transactions.length} transactions found.`,
           );
-          transactions = ruleResults;
         } else {
           // 4. Try Local OCR (Free) if it's a PDF and text extraction was poor
           if (
@@ -147,14 +153,12 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          const shouldRetryWithAI =
-            transactions.length === 0 ||
-            (transactions.length <= 1 &&
-              (fileName.endsWith(".pdf") || fileContent.length > 500));
+          const useAIFallback =
+            req.nextUrl.searchParams.get("useAI") === "true";
 
-          if (shouldRetryWithAI) {
+          if (useAIFallback) {
             console.log(
-              `🤖 Rule-based results low (${transactions.length}). Falling back to AI (Gemini preferred)...`,
+              `🤖 Rule-based results low (${transactions.length}). Falling back to AI (Gemini preferred) as requested via flag...`,
             );
             const buffer = Buffer.from(await fileBlob.arrayBuffer());
 
@@ -186,15 +190,16 @@ export async function POST(req: NextRequest) {
                 fileRecord.file_type,
               );
             }
+          } else {
+            console.log(
+              "🚫 AI fallback is disabled. Returning results from rule-based/OCR only.",
+            );
           }
         }
       }
     } catch (parseError) {
       console.error("Parser error chain failed:", parseError);
-      // Absolute final fallback
-      const { extractDataFromStatement: extractWithOpenAI } =
-        await import("@/lib/openai");
-      transactions = await extractWithOpenAI(fileContent, fileRecord.file_type);
+      // No automatic AI fallback here either
     }
 
     return NextResponse.json({ transactions });

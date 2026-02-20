@@ -10,31 +10,28 @@ export async function parseGenericStatement(text: string) {
   const dateRegex =
     /(\d{1,2}[-/ ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2})[-/ ]\d{2,4})/i;
 
-  // Pattern for Amount: Look for numbers with commas and decimals
-  // This is tricky as it could be balanced, credit, or debit
-  const amountRegex = /((?:(?:\d{1,3}(?:,\d{3})+)|(?:\d+))(?:\.\d{2})?)/;
+  // Pattern for Amount: support currency symbols and multiple decimal types
+  const amountRegex =
+    /(?:[₦$£€\s])*\s*((?:(?:\d{1,3}(?:,\d{3})+)|(?:\d+))(?:\.\d{2})?)/g;
 
   lines.forEach((line, index) => {
     const dateMatch = line.match(dateRegex);
     if (dateMatch) {
       const date = dateMatch[0];
-
-      // Remove date from line to find description and amount
       let remaining = line.replace(date, "").trim();
 
-      // Try to find amount
-      // Often at the end of the line
-      const amountMatches = remaining.match(
-        new RegExp(amountRegex.source, "g"),
-      );
+      // Find all potential amounts on the line
+      const amountMatches = Array.from(remaining.matchAll(amountRegex));
 
       if (amountMatches && amountMatches.length >= 1) {
-        // Heuristic: The last one or two numbers are usually credit/debit or balance
-        const amountStr = amountMatches[amountMatches.length - 1];
+        // Take the last amount as the likely value (often the balance or the transaction amount)
+        // In many statements: Date | Description | Debit | Credit | Balance
+        // We want the primary transaction amount.
+        const amountStr = amountMatches[amountMatches.length - 1][1];
+        const fullAmountStr = amountMatches[amountMatches.length - 1][0];
         const amount = parseFloat(amountStr.replace(/,/g, ""));
 
-        // Description is what stays in the middle
-        const description = remaining.replace(amountStr, "").trim();
+        const description = remaining.replace(fullAmountStr, "").trim();
 
         if (amount > 0 && description.length > 3) {
           transactions.push({
@@ -43,7 +40,7 @@ export async function parseGenericStatement(text: string) {
             amount: amount,
             is_income: detectIncome(line, description),
             category: categorize(description),
-            ai_confidence: 0.5, // Rule-based is marked as 0.5 to show it's heuristic
+            ai_confidence: 0.5,
           });
         }
       }
