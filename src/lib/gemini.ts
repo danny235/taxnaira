@@ -106,3 +106,38 @@ export async function extractDataFromStatement(
     throw error; // Rethrow to let the API know it failed
   }
 }
+export async function extractDataFromPdfBuffer(buffer: Buffer) {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  const prompt = `
+    Analyze this bank statement PDF.
+    Extract every transaction and return them as a JSON array of objects.
+    Each object must have:
+    - date: (ISO 8601 format)
+    - description: (string)
+    - amount: (number, always positive)
+    - is_income: (boolean)
+    - category: (Use the same categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, expense)
+  `;
+
+  try {
+    const result = await retry(() =>
+      model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: buffer.toString("base64"),
+            mimeType: "application/pdf",
+          },
+        },
+      ]),
+    );
+
+    const text = result.response.text();
+    const jsonString = text.replace(/```json|```/gi, "").trim();
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error("Gemini PDF Extraction Error:", error);
+    throw error;
+  }
+}

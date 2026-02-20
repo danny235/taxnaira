@@ -11,7 +11,6 @@ type AuthContextType = {
     session: Session | null
     role: string | null
     isLoading: boolean
-    supabase: ReturnType<typeof createClient>
     signOut: () => Promise<void>
     navigateToLogin: () => void
 }
@@ -21,7 +20,6 @@ const AuthContext = createContext<AuthContextType>({
     session: null,
     role: null,
     isLoading: true,
-    supabase: {} as any,
     signOut: async () => { },
     navigateToLogin: () => { },
 })
@@ -39,15 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const timer = setTimeout(() => {
             console.warn('Auth initialization timed out. Clearing loading state.');
             setIsLoading(false);
-        }, 3000);
+        }, 5000);
 
-        const fetchRole = async (userId: string) => {
-            const { data } = await supabase
-                .from('users')
-                .select('role')
-                .eq('id', userId)
-                .single()
-            if (data) setRole(data.role)
+        const fetchRole = async () => {
+            try {
+                const res = await fetch('/api/user/profile');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.role) setRole(data.role);
+                }
+            } catch (error) {
+                console.error('Error fetching role:', error);
+            }
         }
 
         const {
@@ -59,12 +60,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             try {
                 if (session?.user) {
-                    await fetchRole(session.user.id)
+                    await fetchRole()
                 } else {
                     setRole(null)
                 }
             } catch (error) {
-                console.error('Error fetching role:', error)
+                console.error('Auth state change processing error:', error)
             } finally {
                 setIsLoading(false)
             }
@@ -90,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, session, role, isLoading, supabase, signOut, navigateToLogin }}>
+        <AuthContext.Provider value={{ user, session, role, isLoading, signOut, navigateToLogin }}>
             {children}
         </AuthContext.Provider>
     )

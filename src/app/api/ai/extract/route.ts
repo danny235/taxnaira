@@ -147,16 +147,32 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          if (transactions.length === 0) {
-            console.log("🤖 Falling back to AI (Gemini preferred)...");
+          const shouldRetryWithAI =
+            transactions.length === 0 ||
+            (transactions.length <= 1 &&
+              (fileName.endsWith(".pdf") || fileContent.length > 500));
+
+          if (shouldRetryWithAI) {
+            console.log(
+              `🤖 Rule-based results low (${transactions.length}). Falling back to AI (Gemini preferred)...`,
+            );
+            const buffer = Buffer.from(await fileBlob.arrayBuffer());
+
             // Try Gemini first (Higher free limits)
             try {
-              const { extractDataFromStatement: extractWithGemini } =
-                await import("@/lib/gemini");
-              transactions = await extractWithGemini(
-                fileContent,
-                fileRecord.file_type,
-              );
+              if (fileName.endsWith(".pdf")) {
+                console.log("📄 Using Gemini native PDF buffer extraction...");
+                const { extractDataFromPdfBuffer } =
+                  await import("@/lib/gemini");
+                transactions = await extractDataFromPdfBuffer(buffer);
+              } else {
+                const { extractDataFromStatement: extractWithGemini } =
+                  await import("@/lib/gemini");
+                transactions = await extractWithGemini(
+                  fileContent,
+                  fileRecord.file_type,
+                );
+              }
               console.log(
                 `✨ Gemini extraction successful: ${transactions.length} transactions found.`,
               );

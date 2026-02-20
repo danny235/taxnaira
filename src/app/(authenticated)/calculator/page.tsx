@@ -15,7 +15,7 @@ import { useAuth } from '@/components/auth-provider';
 
 export default function TaxCalculatorPage() {
     const currentYear = new Date().getFullYear();
-    const { user, supabase, isLoading: authLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
     const [loading, setLoading] = useState(true);
 
     // Data states
@@ -30,11 +30,11 @@ export default function TaxCalculatorPage() {
         const init = async () => {
             if (user) {
                 await Promise.all([
-                    fetchSubscription(user.id),
-                    fetchProfile(user.id),
-                    fetchTransactions(user.id),
+                    fetchSubscription(),
+                    fetchProfile(),
+                    fetchTransactions(),
                     fetchTaxData(),
-                    fetchCalculation(user.id)
+                    fetchCalculation()
                 ]);
             }
             setLoading(false);
@@ -42,34 +42,75 @@ export default function TaxCalculatorPage() {
         if (!authLoading) init();
     }, [user, authLoading]);
 
-    const fetchSubscription = async (uid: string) => {
-        const { data } = await supabase.from('subscriptions').select('*').eq('user_id', uid).eq('status', 'active').single();
-        if (data) setSubscription(data);
-        else setSubscription({ plan: 'free' });
+    const fetchSubscription = async () => {
+        try {
+            const res = await fetch('/api/user/subscription');
+            if (res.ok) {
+                const data = await res.json();
+                setSubscription(data);
+            } else {
+                setSubscription({ plan: 'free' });
+            }
+        } catch (error) {
+            console.error('Subscription fetch error:', error);
+            setSubscription({ plan: 'free' });
+        }
     };
 
-    const fetchProfile = async (uid: string) => {
-        const { data } = await supabase.from('users').select('*').eq('id', uid).single();
-        if (data) setProfile(data);
+    const fetchProfile = async () => {
+        try {
+            const res = await fetch('/api/user/profile');
+            if (res.ok) {
+                const data = await res.json();
+                setProfile(data);
+            }
+        } catch (error) {
+            console.error('Profile fetch error:', error);
+        }
     };
 
-    const fetchTransactions = async (uid: string) => {
-        const { data } = await supabase.from('transactions').select('*').eq('user_id', uid).eq('tax_year', currentYear).limit(1000);
-        if (data) setTransactions(data);
+    const fetchTransactions = async () => {
+        try {
+            const res = await fetch(`/api/user/transactions?year=${currentYear}`);
+            if (res.ok) {
+                const data = await res.json();
+                setTransactions(data);
+            }
+        } catch (error) {
+            console.error('Transactions fetch error:', error);
+        }
     };
 
     const fetchTaxData = async () => {
-        // Fetch brackets and settings
-        const { data: brackets } = await supabase.from('tax_brackets').select('*').eq('tax_year', currentYear).eq('is_active', true);
-        if (brackets) setTaxBrackets(brackets);
+        try {
+            // Fetch brackets from admin endpoint (which handles public read)
+            const bRes = await fetch(`/api/admin/tax-brackets?year=${currentYear}`);
+            if (bRes.ok) {
+                const brackets = await bRes.json();
+                setTaxBrackets(brackets);
+            }
 
-        const { data: sets } = await supabase.from('tax_settings').select('*').eq('tax_year', currentYear).eq('is_active', true).single();
-        if (sets) setSettings(sets);
+            // Fetch settings
+            const sRes = await fetch(`/api/user/tax-settings?year=${currentYear}`);
+            if (sRes.ok) {
+                const sets = await sRes.json();
+                setSettings(sets);
+            }
+        } catch (error) {
+            console.error('Tax data fetch error:', error);
+        }
     };
 
-    const fetchCalculation = async (uid: string) => {
-        const { data } = await supabase.from('tax_calculations').select('*').eq('user_id', uid).eq('tax_year', currentYear).single();
-        if (data) setCalculation(data);
+    const fetchCalculation = async () => {
+        try {
+            const res = await fetch(`/api/user/tax-calculation?year=${currentYear}`);
+            if (res.ok) {
+                const data = await res.json();
+                setCalculation(data);
+            }
+        } catch (error) {
+            console.error('Calculation fetch error:', error);
+        }
     };
 
     const handleCalculate = (result: any) => {

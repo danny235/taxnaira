@@ -132,7 +132,7 @@ export default function UploadPage() {
                                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors gap-3"
                                     >
                                         <div className="flex items-center gap-3 overflow-hidden">
-                                            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex-shrink-0">
+                                            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 shrink-0">
                                                 <FileText className="w-5 h-5 text-emerald-600" />
                                             </div>
                                             <div className="min-w-0">

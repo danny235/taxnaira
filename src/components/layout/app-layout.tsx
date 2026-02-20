@@ -15,18 +15,18 @@ import { useQueryClient } from '@tanstack/react-query'
 export function AppLayout({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-    const { user, isLoading: loadingAuth, supabase } = useAuth()
+    const { user, isLoading: loadingAuth } = useAuth()
 
     const { data: profile, isLoading: loadingProfile } = useQuery({
         queryKey: ['profile', user?.id],
         queryFn: async () => {
             if (!user?.id) return null
-            const { data, error } = await supabase.from('users').select('*').eq('id', user.id).single()
-            if (error) {
-                console.error('Profile fetch error:', error)
+            const res = await fetch('/api/user/profile')
+            if (!res.ok) {
+                console.error('Profile fetch error')
                 return null
             }
-            return data
+            return res.json()
         },
         enabled: !!user?.id,
         retry: false
@@ -36,13 +36,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         queryKey: ['subscription', user?.id],
         queryFn: async () => {
             if (!user?.id) return { plan: 'free' }
-            const { data } = await supabase
-                .from('subscriptions')
-                .select('*')
-                .eq('user_id', user.id)
-                .eq('status', 'active')
-                .single()
-            return data || { plan: 'free' }
+            const res = await fetch('/api/user/subscription')
+            if (!res.ok) return { plan: 'free' }
+            return res.json()
         },
         enabled: !!user?.id,
     })

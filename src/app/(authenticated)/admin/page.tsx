@@ -34,7 +34,7 @@ export default function AdminPage() {
     const currentYear = new Date().getFullYear();
     const router = useRouter();
 
-    const { user, supabase, role, isLoading: authLoading } = useAuth();
+    const { user, role, isLoading: authLoading } = useAuth();
     const [users, setUsers] = useState<any[]>([]);
     const [taxBrackets, setTaxBrackets] = useState<any[]>([]);
     const [settings, setSettings] = useState<any>(null);

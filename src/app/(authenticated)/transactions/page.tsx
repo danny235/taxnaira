@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,7 +14,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/components/auth-provider';
 
 export default function TransactionsPage() {
-    const { user, supabase, isLoading: authLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
     const [filter, setFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [showAddDialog, setShowAddDialog] = useState(false);
@@ -35,26 +34,28 @@ export default function TransactionsPage() {
     useEffect(() => {
         if (!authLoading) {
             if (user) {
-                fetchTransactions(user.id);
+                fetchTransactions();
             } else {
                 setLoading(false);
             }
         }
     }, [user, authLoading]);
 
-    const fetchTransactions = async (uid: string) => {
+    const fetchTransactions = async () => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('user_id', uid)
-            .eq('tax_year', currentYear)
-            .order('date', { ascending: false })
-            .limit(500);
-
-        if (data) setTransactions(data);
-        if (error) toast.error("Failed to fetch transactions");
-        setLoading(false);
+        try {
+            const response = await fetch(`/api/user/transactions?year=${currentYear}`);
+            const data = await response.json();
+            if (response.ok) {
+                setTransactions(data);
+            } else {
+                throw new Error(data.error || 'Failed to fetch transactions');
+            }
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const filtered = transactions.filter(tx => {
@@ -72,7 +73,7 @@ export default function TransactionsPage() {
             toast.error('Please fill all required fields');
             return;
         }
-        if (!userId) {
+        if (!user?.id) {
             toast.error("User not authenticated");
             return;
         }
@@ -80,21 +81,29 @@ export default function TransactionsPage() {
         setSaving(true);
         const cat = categories.find(c => c.value === newTx.category);
 
+        const txData = {
+            date: newTx.date,
+            description: newTx.description,
+            amount: Number(newTx.amount),
+            currency: newTx.currency,
+            naira_value: Number(newTx.amount), // Simplified currency conversion assumption
+            category: newTx.category,
+            is_income: cat?.isIncome || false,
+            manually_categorized: true,
+            tax_year: currentYear
+        };
+
         try {
-            const { error } = await supabase.from('transactions').insert({
-                user_id: userId,
-                date: newTx.date,
-                description: newTx.description,
-                amount: Number(newTx.amount),
-                currency: newTx.currency,
-                naira_value: Number(newTx.amount), // Simplified currency conversion assumption
-                category: newTx.category,
-                is_income: cat?.isIncome || false,
-                manually_categorized: true,
-                tax_year: currentYear
+            const response = await fetch('/api/user/transactions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactions: [txData] })
             });
 
-            if (error) throw error;
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to add transaction');
+            }
 
             setSaving(false);
             setShowAddDialog(false);
@@ -105,7 +114,7 @@ export default function TransactionsPage() {
                 category: '',
                 currency: 'NGN'
             });
-            if (user) fetchTransactions(user.id);
+            fetchTransactions();
             toast.success('Transaction added');
         } catch (error: any) {
             toast.error("Failed to add transaction: " + error.message);
@@ -260,7 +269,7 @@ export default function TransactionsPage() {
                     <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
                 </div>
             ) : (
-                <TransactionTable transactions={filtered} onUpdate={() => userId && fetchTransactions(userId)} />
+                <TransactionTable transactions={filtered} onUpdate={fetchTransactions} />
             )}
         </div>
     );

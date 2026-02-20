@@ -20,7 +20,7 @@ interface TaxCalculatorProps {
 }
 
 export default function TaxCalculator({ userId, transactions = [], taxBrackets = [], settings, employmentType, onCalculate }: TaxCalculatorProps) {
-    const { supabase } = useAuth();
+    const { } = useAuth();
     const [payeCredit, setPayeCredit] = useState(0);
     const [calculating, setCalculating] = useState(false);
     const [result, setResult] = useState<any>(null);
@@ -39,9 +39,6 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
             return;
         }
         setCalculating(true);
-
-        // Simple simulation of local calculation (can be moved to Edge Function for security/consistency)
-        // Ideally this logic matches what's on the server or use a shared lib.
 
         const incomeTransactions = transactions.filter(t => t.is_income);
         const expenseTransactions = transactions.filter(t => !t.is_income);
@@ -65,23 +62,17 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
             .filter(t => t.category === 'nhf_contributions')
             .reduce((sum, t) => sum + (t.naira_value || t.amount || 0), 0);
 
-        // Business expenses (for self-employed / business owners) — only deductible ones
-        // Simplified logic as we might not have business_flag in new schema yet, assume all 'business_expenses' category are deductible
         const businessExpenses = expenseTransactions
             .filter(t => t.category === 'business_expenses')
             .reduce((sum, t) => sum + (t.naira_value || t.amount || 0), 0);
 
         const exemptionThreshold = settings?.exemption_threshold || 800000;
 
-        // Employment-type-aware taxable income
         let taxableIncome = 0;
         if (employmentType === 'self_employed' || employmentType === 'business_owner') {
-            // Net profit: income minus allowable business expenses, then minus statutory deductions
             const netProfit = Math.max(0, totalIncome - businessExpenses);
             taxableIncome = Math.max(0, netProfit - pensionDeduction - nhfDeduction);
         } else {
-            // salary_earner or others: Gross salary minus pension, NHF. 
-            // (Consolidated Relief Allowance logic is omitted for brevity but should be here)
             taxableIncome = Math.max(0, totalIncome - pensionDeduction - nhfDeduction);
         }
 
@@ -92,7 +83,6 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
             const sortedBrackets = [...taxBrackets].sort((a, b) => a.min_amount - b.min_amount);
             let remainingIncome = taxableIncome;
 
-            // Fallback brackets if none provided
             const bracketsToUse = sortedBrackets.length > 0 ? sortedBrackets : [
                 { min_amount: 0, max_amount: 300000, rate: 7 },
                 { min_amount: 300000, max_amount: 600000, rate: 11 },
@@ -102,40 +92,10 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
                 { min_amount: 3200000, max_amount: -1, rate: 24 },
             ];
 
-            // Note: This logic assumes a simple progressive tax.
-            // Nigerian tax law has Consolidated Relief Allowance (CRA) which reduces taxable income significantly.
-            // For this migration, we stick to the provided logic roughly.
-
-            // Actually, specific logic: Income Tax is on (Gross - Reliefs).
-            // Here taxableIncome is treated as the chargeable income.
-
             for (const bracket of bracketsToUse) {
                 if (remainingIncome <= 0) break;
-
-                const bracketMax = bracket.max_amount === -1 ? Infinity : (bracket.max_amount - bracket.min_amount); // Adjusted range logic if min is absolute
-                // Wait, standard bracket object usually is: { min: 0, max: 300000 } -> range is 300k.
-                // If the object is { min: 300000, max: 600000 }, range is 300k.
-                // Assuming the input `taxBrackets` are standard ranges (0-300k, 300k-600k, etc.)
-
-                // Let's rely on the logic:
-                // First 300k @ 7%
-                // Next 300k @ 11%
-                // etc.
-
-                // Use a simpler approach for known thresholds if using fallback:
-                let range = 0;
-                if (sortedBrackets.length === 0) {
-                    // Hardcoded ranges relative to 0 base for simplicity in loop
-                    // Actually, let's just use the `bracketRange` calculation from legacy code if available
-                    // Legacy: const bracketRange = bracketMax - bracket.min_amount;
-                    // This assumes brackets are contiguous and cover the spectrum.
-                    const bMax = bracket.max_amount === -1 ? Infinity : bracket.max_amount;
-                    range = bMax - bracket.min_amount;
-                } else {
-                    const bMax = bracket.max_amount === -1 ? Infinity : bracket.max_amount;
-                    range = bMax - bracket.min_amount;
-                }
-
+                const bMax = bracket.max_amount === -1 ? Infinity : bracket.max_amount;
+                const range = bMax - bracket.min_amount;
                 const amountInBracket = Math.min(remainingIncome, range);
                 const taxForBracket = amountInBracket * (bracket.rate / 100);
 
@@ -148,7 +108,6 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
                     });
                     grossTax += taxForBracket;
                 }
-
                 remainingIncome -= amountInBracket;
             }
         }
@@ -156,7 +115,6 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
         const finalTaxLiability = Math.max(0, grossTax - payeCredit);
 
         const calculationData = {
-            user_id: userId,
             tax_year: new Date().getFullYear(),
             total_income: totalIncome,
             total_expenses: totalExpenses,
@@ -174,32 +132,26 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
         };
 
         try {
-            // Save to Supabase
-            // Upsert based on user_id and tax_year if possible, or just insert
-            // Since we don't have a unique constraint known for sure, we select first.
+            const response = await fetch('/api/user/tax-calculation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(calculationData)
+            })
 
-            const { data: existing } = await supabase.from('tax_calculations')
-                .select('id')
-                .eq('user_id', userId)
-                .eq('tax_year', calculationData.tax_year)
-                .single();
-
-            if (existing) {
-                await supabase.from('tax_calculations').update(calculationData).eq('id', existing.id);
-            } else {
-                await supabase.from('tax_calculations').insert(calculationData);
+            if (!response.ok) {
+                const error = await response.json()
+                throw new Error(error.error || 'Failed to save calculation')
             }
 
             setResult(calculationData);
             setCalculating(false);
             if (onCalculate) onCalculate(calculationData);
-            toast.success("Tax calculated successfully");
+            toast.success("Tax calculated and saved successfully");
         } catch (error: any) {
             console.error("Calculation save failed", error);
-            // Still show result even if save fails
             setResult(calculationData);
             setCalculating(false);
-            toast.error("Saved calculation failed, but here is the estimate.");
+            toast.error("Failed to save calculation, but showing estimate.");
         }
     };
 

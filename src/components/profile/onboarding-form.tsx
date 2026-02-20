@@ -15,6 +15,7 @@ import {
     ArrowRight, ArrowLeft, CheckCircle2, Sparkles,
     Building2, Globe, Bitcoin, TrendingUp
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuth } from '@/components/auth-provider'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -59,7 +60,7 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
         trades_crypto: false
     })
 
-    const { supabase } = useAuth()
+    const { } = useAuth()
 
     const updateField = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }))
 
@@ -75,23 +76,32 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
     const handleSubmit = async () => {
         setSaving(true)
         try {
-            // Update profile
-            await supabase.from('users').update({
-                full_name: formData.full_name,
-                phone_number: formData.phone_number,
-                state_of_residence: formData.state_of_residence,
-                residential_address: formData.residential_address,
-                employment_type: formData.employment_type,
-                annual_income_estimate: Number(formData.annual_income_estimate) || 0,
-                receives_foreign_income: formData.receives_foreign_income,
-                trades_crypto: formData.trades_crypto,
-                profile_complete: true
-            }).eq('id', userId)
+            const response = await fetch('/api/user/profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    full_name: formData.full_name,
+                    phone_number: formData.phone_number,
+                    state_of_residence: formData.state_of_residence,
+                    residential_address: formData.residential_address,
+                    employment_type: formData.employment_type,
+                    annual_income_estimate: Number(formData.annual_income_estimate) || 0,
+                    receives_foreign_income: formData.receives_foreign_income,
+                    trades_crypto: formData.trades_crypto,
+                    profile_complete: true
+                })
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Failed to update profile')
+            }
 
             setDone(true)
             setTimeout(() => { if (onComplete) onComplete() }, 2000)
         } catch (error) {
             console.error('Onboarding failed:', error)
+            toast.error('Failed to complete setup. Please try again.')
         } finally {
             setSaving(false)
         }

@@ -27,7 +27,7 @@ const EMPLOYMENT_TYPES = [
 ];
 
 export default function SettingsPage() {
-    const { user, supabase, isLoading: authLoading } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
     const [profileId, setProfileId] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export default function SettingsPage() {
     useEffect(() => {
         const init = async () => {
             if (user) {
-                fetchProfile(user.id);
+                fetchProfile();
             } else {
                 setLoading(false);
             }
@@ -54,22 +54,30 @@ export default function SettingsPage() {
         if (!authLoading) init();
     }, [user, authLoading]);
 
-    const fetchProfile = async (uid: string) => {
-        const { data } = await supabase.from('users').select('*').eq('id', uid).single();
-        if (data) {
-            setProfileId(data.id);
-            setFormData({
-                full_name: data.full_name || '',
-                phone_number: data.phone_number || '',
-                state_of_residence: data.state_of_residence || '',
-                residential_address: data.residential_address || '',
-                employment_type: data.employment_type || '',
-                annual_income_estimate: data.annual_income_estimate || '',
-                receives_foreign_income: data.receives_foreign_income || false,
-                trades_crypto: data.trades_crypto || false
-            });
+    const fetchProfile = async () => {
+        try {
+            const response = await fetch('/api/user/profile');
+            const data = await response.json();
+
+            if (data) {
+                setProfileId(data.id);
+                setFormData({
+                    full_name: data.full_name || '',
+                    phone_number: data.phone_number || '',
+                    state_of_residence: data.state_of_residence || '',
+                    residential_address: data.residential_address || '',
+                    employment_type: data.employment_type || '',
+                    annual_income_estimate: data.annual_income_estimate?.toString() || '',
+                    receives_foreign_income: data.receives_foreign_income || false,
+                    trades_crypto: data.trades_crypto || false
+                });
+            }
+        } catch (error) {
+            console.error("Failed to fetch profile:", error);
+            toast.error("Failed to load profile settings");
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const updateField = (field: string, value: any) => {
@@ -83,26 +91,24 @@ export default function SettingsPage() {
         }
         setSaving(true);
 
-        const data = {
+        const updateData = {
             ...formData,
             annual_income_estimate: Number(formData.annual_income_estimate) || 0,
             profile_complete: true
         };
 
         try {
-            if (profileId) {
-                const { error } = await supabase.from('users').update(data).eq('id', profileId);
-                if (error) throw error;
-            } else {
-                const { error } = await supabase.from('users').insert({
-                    id: user.id,
-                    email: user.email,
-                    ...data
-                });
-                if (error) throw error;
-                // Refetch to get the ID if created
-                fetchProfile(user.id);
+            const response = await fetch('/api/user/profile', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save profile');
             }
+
             toast.success('Profile saved successfully');
         } catch (error: any) {
             toast.error("Failed to save profile: " + error.message);
