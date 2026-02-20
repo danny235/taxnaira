@@ -14,7 +14,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, Menu, User, Settings, Crown } from 'lucide-react'
+import { Bell, Menu, User, Settings, Crown, Coins } from 'lucide-react'
 import { useAuth } from '@/components/auth-provider'
 import { ModeToggle } from '@/components/mode-toggle'
 import { cn } from '@/lib/utils'
@@ -66,6 +66,14 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
             </div>
 
             <div className="flex items-center gap-3">
+                {profile?.credit_balance !== undefined && (
+                    <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30">
+                        <Coins className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                            {profile.credit_balance}
+                        </span>
+                    </div>
+                )}
                 {getPlanBadge()}
 
                 <ModeToggle />

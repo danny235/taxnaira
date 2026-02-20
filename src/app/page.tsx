@@ -1,7 +1,9 @@
 "use client";
 
+import React, { useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { useAuth } from '@/components/auth-provider';
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   CheckCircle,
@@ -12,11 +14,14 @@ import {
   FileText,
   PieChart,
   Users,
+  Menu,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 
 export default function LandingPage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -101,30 +106,87 @@ export default function LandingPage() {
             Pricing
           </Link>
         </nav>
-        <div className="flex items-center gap-4">
-          <ModeToggle />
-          <Link href="/dashboard/login">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Log in
-            </Button>
-          </Link>
-          <Link href="/dashboard/register">
-            <Button size="sm" className="font-semibold shadow-sm">
-              Get Started
-            </Button>
-          </Link>
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 mr-2">
+            <ModeToggle />
+          </div>
+          <div className="hidden md:flex items-center gap-3">
+            <Link href="/dashboard/login">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Log in
+              </Button>
+            </Link>
+            <Link href="/dashboard/register">
+              <Button size="sm" className="font-semibold shadow-sm">
+                Get Started
+              </Button>
+            </Link>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          </Button>
         </div>
       </header>
 
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden border-b bg-background/95 backdrop-blur-xl z-40 overflow-hidden"
+          >
+            <div className="flex flex-col p-6 gap-4">
+              <Link
+                href="#features"
+                className="text-lg font-medium hover:text-primary transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Features
+              </Link>
+              <Link
+                href="/calculator"
+                className="text-lg font-medium hover:text-primary transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Calculator
+              </Link>
+              <Link
+                href="/pricing"
+                className="text-lg font-medium hover:text-primary transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Pricing
+              </Link>
+              <hr className="border-border/50" />
+              <div className="flex flex-col gap-3">
+                <Link href="/dashboard/login" className="w-full">
+                  <Button variant="outline" className="w-full justify-center">Log in</Button>
+                </Link>
+                <Link href="/dashboard/register" className="w-full">
+                  <Button className="w-full justify-center">Get Started</Button>
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative py-24 px-6 lg:py-32 overflow-hidden">
+        <section className="relative py-12 px-6 md:py-24 lg:py-32 overflow-hidden">
           <motion.div
-            className="container max-w-5xl mx-auto text-center space-y-8"
+            className="container max-w-5xl mx-auto text-center space-y-6 md:space-y-8"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
@@ -140,7 +202,7 @@ export default function LandingPage() {
             </div>
 
             <motion.h1
-              className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter text-foreground"
+              className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter text-foreground"
               variants={itemVariants}
             >
               Simplify Your Taxes <br className="hidden md:block" />
@@ -178,7 +240,7 @@ export default function LandingPage() {
 
             {/* Abstract Dashboard Preview */}
             <motion.div
-              className="mt-20 relative rounded-2xl border bg-background/50 shadow-2xl overflow-hidden aspect-video max-w-5xl mx-auto transform hover:scale-[1.01] transition-transform duration-500 will-change-transform"
+              className="mt-12 md:mt-20 relative rounded-2xl border bg-background/50 shadow-2xl overflow-hidden min-h-[400px] sm:min-h-0 sm:aspect-video max-w-5xl mx-auto transform hover:scale-[1.01] transition-transform duration-500 will-change-transform"
               variants={itemVariants}
             >
               {/* Mock UI Header */}
@@ -194,7 +256,7 @@ export default function LandingPage() {
               </div>
 
               {/* Mock UI Content */}
-              <div className="pt-12 p-6 h-full grid grid-cols-12 gap-6 bg-background/40">
+              <div className="pt-12 p-3 sm:p-6 h-full grid grid-cols-12 gap-4 sm:gap-6 bg-background/40">
                 {/* Sidebar Mock */}
                 <div className="hidden md:block col-span-3 space-y-4 pt-4 px-2">
                   <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
@@ -218,38 +280,38 @@ export default function LandingPage() {
                 {/* Main Content Mock */}
                 <div className="col-span-12 md:col-span-9 grid gap-6">
                   {/* Stats Cards */}
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 overflow-y-auto sm:overflow-visible pr-1">
                     <div className="rounded-xl border bg-background/80 p-4 shadow-sm flex flex-col justify-between h-32">
-                      <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center mb-2">
-                        <Zap className="h-4 w-4" />
+                      <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center mb-1 sm:mb-2">
+                        <Zap className="h-3 w-3 sm:h-4 sm:w-4" />
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs font-medium uppercase">Total Revenue</div>
-                        <div className="text-2xl font-bold tracking-tight">₦4.2M</div>
+                        <div className="text-muted-foreground text-[10px] sm:text-xs font-medium uppercase">Total Revenue</div>
+                        <div className="text-xl sm:text-2xl font-bold tracking-tight">₦4.2M</div>
                       </div>
                     </div>
                     <div className="rounded-xl border bg-background/80 p-4 shadow-sm flex flex-col justify-between h-32">
-                      <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center mb-2">
-                        <Shield className="h-4 w-4" />
+                      <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center mb-1 sm:mb-2">
+                        <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs font-medium uppercase">Tax Liability</div>
-                        <div className="text-2xl font-bold tracking-tight">₦350k</div>
+                        <div className="text-muted-foreground text-[10px] sm:text-xs font-medium uppercase">Tax Liability</div>
+                        <div className="text-xl sm:text-2xl font-bold tracking-tight">₦350k</div>
                       </div>
                     </div>
                     <div className="rounded-xl border bg-background/80 p-4 shadow-sm flex flex-col justify-between h-32">
-                      <div className="h-8 w-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center mb-2">
-                        <RefreshCw className="h-4 w-4" />
+                      <div className="h-6 w-6 sm:h-8 sm:w-8 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center mb-1 sm:mb-2">
+                        <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4" />
                       </div>
                       <div>
-                        <div className="text-muted-foreground text-xs font-medium uppercase">Pending</div>
-                        <div className="text-2xl font-bold tracking-tight">3</div>
+                        <div className="text-muted-foreground text-[10px] sm:text-xs font-medium uppercase">Pending</div>
+                        <div className="text-xl sm:text-2xl font-bold tracking-tight">3</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Chart Area */}
-                  <div className="h-64 rounded-xl border bg-background/80 p-6 shadow-sm flex flex-col justify-between">
+                  <div className="h-48 sm:h-64 rounded-xl border bg-background/80 p-4 sm:p-6 shadow-sm flex flex-col justify-between">
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h4 className="font-semibold text-sm">Monthly Revenue</h4>

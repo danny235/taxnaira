@@ -204,7 +204,7 @@ export default function TransactionsPage() {
                                         <SelectTrigger className="mt-1">
                                             <SelectValue placeholder="Select category" />
                                         </SelectTrigger>
-                                        <SelectContent>
+                                        <SelectContent position="popper" className="max-h-[300px]">
                                             {categories.map(cat => (
                                                 <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
                                             ))}
@@ -254,7 +254,7 @@ export default function TransactionsPage() {
                         <Filter className="w-4 h-4 mr-2" />
                         <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="max-h-[300px]">
                         <SelectItem value="all">All Categories</SelectItem>
                         {categories.map(cat => (
                             <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>

@@ -273,7 +273,7 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
                                                 <SelectTrigger className="mt-1.5 h-11">
                                                     <SelectValue placeholder="Select your state" />
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent position="popper" className="max-h-[250px]" align="start" sideOffset={4}>
                                                     {STATES.map(state => (
                                                         <SelectItem key={state} value={state}>{state}</SelectItem>
                                                     ))}

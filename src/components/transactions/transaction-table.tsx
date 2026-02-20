@@ -220,7 +220,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                             <SelectTrigger className="w-[150px] h-8">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent>
+                                            <SelectContent position="popper" className="max-h-[300px]">
                                                 {categories.map(cat => (
                                                     <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
                                                 ))}
