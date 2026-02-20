@@ -60,14 +60,28 @@ export async function POST(req: NextRequest) {
       fileRecord.file_name.toLowerCase().endsWith(".pdf")
     ) {
       try {
+        const pdfImport = await import("pdf-parse");
+        // pdf-parse can be exported as a function, default object, or nested.
         const pdf =
-          (await import("pdf-parse")).default || (await import("pdf-parse"));
+          typeof pdfImport === "function"
+            ? pdfImport
+            : (pdfImport as any).default || pdfImport;
+
         const buffer = Buffer.from(await fileBlob.arrayBuffer());
-        const data = await (pdf as any)(buffer);
-        fileContent = data.text;
-        console.log(
-          `📄 PDF text extracted successfully (${fileContent.length} chars)`,
-        );
+
+        if (typeof pdf === "function") {
+          const data = await pdf(buffer);
+          fileContent = data.text;
+          console.log(
+            `📄 PDF text extracted successfully (${fileContent.length} chars)`,
+          );
+        } else {
+          console.error(
+            "pdf-parse is not a function after import:",
+            typeof pdf,
+          );
+          throw new Error("PDF parser initialization failed");
+        }
       } catch (pdfError) {
         console.error("PDF Parsing Error:", pdfError);
         fileContent = await fileBlob.text(); // Fallback to raw text

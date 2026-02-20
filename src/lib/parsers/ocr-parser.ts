@@ -42,15 +42,32 @@ export async function parsePdfWithOcr(buffer: Buffer): Promise<string> {
 
     if (fs.existsSync(expectedImagePath)) {
       console.log("🔍 Running Tesseract OCR on image...");
-      const worker = await createWorker("eng");
-      const {
-        data: { text },
-      } = await worker.recognize(expectedImagePath);
-      await worker.terminate();
-      extractedText = text;
-      console.log(
-        `✅ OCR successful: extracted ${extractedText.length} characters`,
-      );
+      let worker;
+      try {
+        // Resolve absolute path to the worker script to handle non-standard roots (like /ROOT/)
+        const workerPath = path.resolve(
+          process.cwd(),
+          "node_modules/tesseract.js/src/worker-script/node/index.js",
+        );
+
+        worker = await createWorker("eng", 1, {
+          workerPath,
+          logger: (m) => console.log(m),
+        });
+
+        const {
+          data: { text },
+        } = await worker.recognize(expectedImagePath);
+        extractedText = text;
+        console.log(
+          `✅ OCR successful: extracted ${extractedText.length} characters`,
+        );
+      } catch (workerError) {
+        console.error("❌ Tesseract Worker Error:", workerError);
+        throw workerError;
+      } finally {
+        if (worker) await worker.terminate();
+      }
     } else {
       console.warn("⚠️ Could not generate image from PDF using qlmanage.");
       // Fallback: notify user or try another method
