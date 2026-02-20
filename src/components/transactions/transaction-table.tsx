@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { format } from 'date-fns';
-import { Search, Edit2, Check, X, AlertTriangle, Trash2 } from 'lucide-react';
+import { Search, Edit2, Check, X, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { toast } from 'sonner';
 
 export const categories = [
@@ -54,6 +56,8 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
     const [search, setSearch] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editCategory, setEditCategory] = useState('');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const filtered = transactions.filter(tx =>
         tx.description?.toLowerCase().includes(search.toLowerCase()) ||
@@ -101,9 +105,56 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
             }
 
             toast.success("Transaction deleted");
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(txId);
+                return next;
+            });
             if (onUpdate) onUpdate();
         } catch (error: any) {
             toast.error("Failed to delete transaction: " + error.message);
+        }
+    };
+
+    const handleBatchDelete = async () => {
+        if (selectedIds.size === 0) return;
+        if (!confirm(`Are you sure you want to delete ${selectedIds.size} transactions?`)) return;
+
+        setIsDeleting(true);
+        try {
+            const response = await fetch('/api/user/transactions', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: Array.from(selectedIds) })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to delete transactions');
+            }
+
+            toast.success(`${selectedIds.size} transactions deleted`);
+            setSelectedIds(new Set());
+            if (onUpdate) onUpdate();
+        } catch (error: any) {
+            toast.error("Failed to delete transactions: " + error.message);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
+    };
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedIds(new Set(filtered.map(tx => tx.id)));
+        } else {
+            setSelectedIds(new Set());
         }
     };
 
@@ -123,17 +174,32 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50 dark:bg-slate-700/50">
-                            <TableHead className="font-semibold">Date</TableHead>
-                            <TableHead className="font-semibold">Description</TableHead>
-                            <TableHead className="font-semibold">Amount</TableHead>
-                            <TableHead className="font-semibold">Category</TableHead>
-                            <TableHead className="font-semibold">Confidence</TableHead>
-                            <TableHead className="font-semibold w-[100px]">Actions</TableHead>
+                            <TableHead className="w-[50px]">
+                                <Checkbox
+                                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                                    onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                                />
+                            </TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Date</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Description</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Amount</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Category</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Confidence</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider w-[80px] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filtered.length > 0 ? filtered.map((tx) => (
-                            <TableRow key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                            <TableRow key={tx.id} className={cn(
+                                "hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors",
+                                selectedIds.has(tx.id) && "bg-emerald-50/30 dark:bg-emerald-900/10"
+                            )}>
+                                <TableCell>
+                                    <Checkbox
+                                        checked={selectedIds.has(tx.id)}
+                                        onCheckedChange={() => toggleSelect(tx.id)}
+                                    />
+                                </TableCell>
                                 <TableCell className="text-slate-600 dark:text-slate-400">
                                     {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
                                 </TableCell>
@@ -214,6 +280,43 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Floating Selection Bar */}
+            {selectedIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-slate-900 dark:bg-slate-800 text-white px-6 py-3 rounded-full border border-slate-700 dark:border-slate-600 shadow-2xl flex items-center gap-6">
+                        <span className="text-sm font-medium">
+                            {selectedIds.size} {selectedIds.size === 1 ? 'transaction' : 'transactions'} selected
+                        </span>
+                        <div className="h-4 w-px bg-slate-700" />
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-slate-400 hover:text-white h-8"
+                                onClick={() => setSelectedIds(new Set())}
+                            >
+                                Deselect all
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-8 px-4 rounded-full font-semibold shadow-sm hover:scale-105 transition-transform"
+                                onClick={handleBatchDelete}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                )}
+                                Delete Selected
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
