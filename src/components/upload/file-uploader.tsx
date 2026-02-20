@@ -125,8 +125,8 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
                                     <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
                                         <FileText className="w-5 h-5 text-emerald-600" />
                                     </div>
-                                    <div className="text-left">
-                                        <p className="font-medium text-slate-900 dark:text-white">{file.name}</p>
+                                    <div className="text-left min-w-0">
+                                        <p className="font-medium text-slate-900 dark:text-white truncate max-w-[150px] sm:max-w-[300px]">{file.name}</p>
                                         <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
                                     </div>
                                 </div>

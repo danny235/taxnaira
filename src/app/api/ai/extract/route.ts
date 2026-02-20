@@ -52,13 +52,120 @@ export async function POST(req: NextRequest) {
       throw downloadError;
     }
 
-    const fileContent = await fileBlob.text();
+    let fileContent = "";
 
-    // 2. Extract data using Gemini
-    const transactions = await extractDataFromStatement(
-      fileContent,
-      fileRecord.file_type,
-    );
+    // 2. Extract Text from PDF or Text-based file
+    if (
+      fileRecord.file_type === "application/pdf" ||
+      fileRecord.file_name.toLowerCase().endsWith(".pdf")
+    ) {
+      try {
+        const pdf =
+          (await import("pdf-parse")).default || (await import("pdf-parse"));
+        const buffer = Buffer.from(await fileBlob.arrayBuffer());
+        const data = await (pdf as any)(buffer);
+        fileContent = data.text;
+        console.log(
+          `📄 PDF text extracted successfully (${fileContent.length} chars)`,
+        );
+      } catch (pdfError) {
+        console.error("PDF Parsing Error:", pdfError);
+        fileContent = await fileBlob.text(); // Fallback to raw text
+      }
+    } else {
+      fileContent = await fileBlob.text();
+    }
+
+    let transactions = [];
+    const fileName = fileRecord.file_name.toLowerCase();
+    const isExcel =
+      fileName.endsWith(".xlsx") ||
+      fileName.endsWith(".xls") ||
+      fileName.endsWith(".csv");
+
+    // 3. Try Specialized Parsers First (Free)
+    try {
+      if (isExcel) {
+        console.log("📊 Attempting Excel/CSV extraction...");
+        const { parseExcelStatement } =
+          await import("@/lib/parsers/excel-parser");
+        const buffer = Buffer.from(await fileBlob.arrayBuffer());
+        transactions = await parseExcelStatement(buffer);
+        console.log(
+          `✅ Excel extraction successful: ${transactions.length} transactions found.`,
+        );
+      } else {
+        console.log("🔍 Attempting rule-based extraction...");
+        const { parseGenericStatement } =
+          await import("@/lib/parsers/generic-parser");
+        const ruleResults = await parseGenericStatement(fileContent);
+
+        if (ruleResults && ruleResults.length > 0) {
+          console.log(
+            `✅ Rule-based extraction successful: ${ruleResults.length} transactions found.`,
+          );
+          transactions = ruleResults;
+        } else {
+          // 4. Try Local OCR (Free) if it's a PDF and text extraction was poor
+          if (
+            fileRecord.file_type === "application/pdf" ||
+            fileName.endsWith(".pdf")
+          ) {
+            console.log("🖼️ Rule-based returned 0. Attempting Local OCR...");
+            const { parsePdfWithOcr } =
+              await import("@/lib/parsers/ocr-parser");
+            const buffer = Buffer.from(await fileBlob.arrayBuffer());
+            const ocrText = await parsePdfWithOcr(buffer);
+
+            if (ocrText && ocrText.length > 100) {
+              console.log(
+                `📝 OCR extracted ${ocrText.length} chars. Re-running rules...`,
+              );
+              const ocrResults = await parseGenericStatement(ocrText);
+              if (ocrResults && ocrResults.length > 0) {
+                console.log(
+                  `✅ OCR + Rules successful: ${ocrResults.length} transactions found.`,
+                );
+                transactions = ocrResults;
+              } else {
+                fileContent = ocrText; // Use OCR text for AI fallback
+              }
+            }
+          }
+
+          if (transactions.length === 0) {
+            console.log("🤖 Falling back to AI (Gemini preferred)...");
+            // Try Gemini first (Higher free limits)
+            try {
+              const { extractDataFromStatement: extractWithGemini } =
+                await import("@/lib/gemini");
+              transactions = await extractWithGemini(
+                fileContent,
+                fileRecord.file_type,
+              );
+              console.log(
+                `✨ Gemini extraction successful: ${transactions.length} transactions found.`,
+              );
+            } catch (geminiError) {
+              console.error("Gemini failed, trying OpenAI...", geminiError);
+              // Final fallback to OpenAI
+              const { extractDataFromStatement: extractWithOpenAI } =
+                await import("@/lib/openai");
+              transactions = await extractWithOpenAI(
+                fileContent,
+                fileRecord.file_type,
+              );
+            }
+          }
+        }
+      }
+    } catch (parseError) {
+      console.error("Parser error chain failed:", parseError);
+      // Absolute final fallback
+      const { extractDataFromStatement: extractWithOpenAI } =
+        await import("@/lib/openai");
+      transactions = await extractWithOpenAI(fileContent, fileRecord.file_type);
+    }
 
     return NextResponse.json({ transactions });
   } catch (error: any) {

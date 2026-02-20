@@ -1,7 +1,4 @@
-"use client";
-
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
@@ -12,10 +9,11 @@ import TaxSummaryCard from '@/components/dashboard/tax-summary-card';
 import Disclaimer from '@/components/common/disclaimer';
 import SubscriptionGate from '@/components/common/subscription-gate';
 import { toast } from 'sonner';
+import { useAuth } from '@/components/auth-provider';
 
 export default function TaxCalculatorPage() {
     const currentYear = new Date().getFullYear();
-    const [user, setUser] = useState<any>(null);
+    const { user, supabase, isLoading: authLoading } = useAuth();
     const [loading, setLoading] = useState(true);
 
     // Data states
@@ -26,13 +24,9 @@ export default function TaxCalculatorPage() {
     const [settings, setSettings] = useState<any>({ exemption_threshold: 800000 });
     const [calculation, setCalculation] = useState<any>(null);
 
-    const supabase = createClient();
-
     useEffect(() => {
         const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                setUser(user);
                 await Promise.all([
                     fetchSubscription(user.id),
                     fetchProfile(user.id),
@@ -43,8 +37,8 @@ export default function TaxCalculatorPage() {
             }
             setLoading(false);
         };
-        init();
-    }, []);
+        if (!authLoading) init();
+    }, [user, authLoading]);
 
     const fetchSubscription = async (uid: string) => {
         const { data } = await supabase.from('subscriptions').select('*').eq('user_id', uid).eq('status', 'active').single();
@@ -81,7 +75,7 @@ export default function TaxCalculatorPage() {
         // invalidate queries if using react-query, here just local state update is enough
     };
 
-    if (loading) {
+    if (loading || authLoading) {
         return (
             <div className="flex items-center justify-center h-96">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />

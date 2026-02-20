@@ -15,7 +15,7 @@ import {
     ArrowRight, ArrowLeft, CheckCircle2, Sparkles,
     Building2, Globe, Bitcoin, TrendingUp
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/components/auth-provider'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const STATES = [
@@ -59,7 +59,7 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
         trades_crypto: false
     })
 
-    const supabase = createClient()
+    const { supabase } = useAuth()
 
     const updateField = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }))
 
@@ -194,8 +194,8 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
                             return (
                                 <div key={s.id} className="flex flex-col items-center gap-1">
                                     <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${isDone ? 'bg-emerald-500 text-white' :
-                                            isActive ? 'bg-emerald-100 text-emerald-600 ring-2 ring-emerald-500' :
-                                                'bg-slate-100 dark:bg-slate-700 text-slate-400'
+                                        isActive ? 'bg-emerald-100 text-emerald-600 ring-2 ring-emerald-500' :
+                                            'bg-slate-100 dark:bg-slate-700 text-slate-400'
                                         }`}>
                                         {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                                     </div>
@@ -296,8 +296,8 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
                                                             type="button"
                                                             onClick={() => updateField('employment_type', type.value)}
                                                             className={`p-3 rounded-xl border-2 text-left transition-all ${formData.employment_type === type.value
-                                                                    ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                                                                    : 'border-slate-200 dark:border-slate-700 hover:border-emerald-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                                                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                                                                : 'border-slate-200 dark:border-slate-700 hover:border-emerald-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
                                                                 }`}
                                                         >
                                                             <Icon className={`w-5 h-5 mb-1 ${formData.employment_type === type.value ? 'text-emerald-600' : 'text-slate-400'}`} />

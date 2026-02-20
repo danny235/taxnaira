@@ -66,21 +66,66 @@ export async function extractDataFromStatement(
   fileData: string,
   fileType: string,
 ) {
+  // Rough estimate: 4 characters per token.
+  // TPM Limit is 30,000 for some users.
+  // Let's use 20,000 characters per chunk (~5,000 tokens) to be safe.
+  const CHUNK_SIZE = 20000;
+
+  if (fileData.length <= CHUNK_SIZE) {
+    return await processChunk(fileData, fileType);
+  }
+
+  console.log(
+    `📄 Large file detected (${fileData.length} chars). Splitting into chunks...`,
+  );
+
+  const chunks: string[] = [];
+  for (let i = 0; i < fileData.length; i += CHUNK_SIZE) {
+    chunks.push(fileData.slice(i, i + CHUNK_SIZE));
+  }
+
+  let allTransactions: any[] = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    console.log(`Processing chunk ${i + 1}/${chunks.length}...`);
+    try {
+      const transactions = await processChunk(chunks[i], fileType);
+      allTransactions = [...allTransactions, ...transactions];
+    } catch (error: any) {
+      console.error(`Error processing chunk ${i + 1}:`, error.message);
+      // If we hit a rate limit error even with chunking, we should probably stop and return what we have (or fallback)
+      if (error.status === 429) {
+        console.warn(
+          "⚠️ Rate limit hit during chunked processing. Returning existing results.",
+        );
+        break;
+      }
+    }
+  }
+
+  return allTransactions;
+}
+
+/**
+ * Internal helper to process a single chunk of data
+ */
+async function processChunk(chunkData: string, fileType: string) {
   const prompt = `
-    Analyze this ${fileType} bank statement or financial document content.
+    Analyze this part of a ${fileType} bank statement or financial document content.
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format)
     - description: (string)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Use the same categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, expense)
+    - category: (Use categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, expense)
 
     Content:
-    ${fileData}
+    ${chunkData}
   `;
 
   try {
+    console.log("Starting OpenAI request...");
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -102,7 +147,6 @@ export async function extractDataFromStatement(
       return result.transactions;
     }
 
-    // Fallback if structure is unexpected but might still be an array at root (less likely with json_object mode but possible if model ignores system)
     if (Array.isArray(result)) return result;
 
     return [];
@@ -116,13 +160,15 @@ export async function extractDataFromStatement(
 
     // Fallback for demo/testing purposes if AI fails (Quota or Rate Limit)
     if (
-      error.status === 429 ||
-      error.code === "insufficient_quota" ||
-      error.message?.includes("quota")
+      (error.status === 429 ||
+        error.code === "insufficient_quota" ||
+        error.message?.includes("quota")) &&
+      process.env.ENABLE_MOCK_FALLBACK === "true"
     ) {
       console.warn(
-        "⚠️ OpenAI Quota Exceeded. Returning mock data for demonstration.",
+        "⚠️ OpenAI Quota or Rate Limit exceeded. Returning mock data for demonstration.",
       );
+      // Only return mock data if we have zero transactions so far
       return [
         {
           date: new Date().toISOString(),

@@ -200,11 +200,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 {transactions.length === 0 ? (
                     <div className="text-center py-8">
                         <p className="text-slate-500 mb-4">Click to extract transactions from your file</p>
-                        <Button onClick={parseFile} disabled={parsing} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        <Button onClick={parseFile} disabled={parsing} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
                             {parsing ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Extracting (this may take a moment)...
+                                    <span>Extracting...</span>
                                 </>
                             ) : (
                                 'Extract Transactions'
@@ -213,7 +213,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                     </div>
                 ) : (
                     <>
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-4">
                                 <Checkbox
                                     checked={selectedCount === transactions.length && transactions.length > 0}
@@ -223,7 +223,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                     {selectedCount} of {transactions.length} selected
                                 </span>
                             </div>
-                            <Button onClick={() => parseFile()} disabled={parsing} variant="outline" size="sm">
+                            <Button onClick={() => parseFile()} disabled={parsing} variant="outline" size="sm" className="w-full sm:w-auto">
                                 {parsing ? (
                                     <>
                                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />

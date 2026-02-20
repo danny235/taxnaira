@@ -18,6 +18,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className="antialiased font-sans"
+        suppressHydrationWarning
       >
         <Providers
           attribute="class"

@@ -6,7 +6,6 @@ import { Sidebar } from '@/components/layout/sidebar'
 import { Header } from '@/components/layout/header'
 import { useAuth } from '@/components/auth-provider'
 import { useQuery } from '@tanstack/react-query'
-import { createClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
@@ -16,17 +15,21 @@ import { useQueryClient } from '@tanstack/react-query'
 export function AppLayout({ children }: { children: React.ReactNode }) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-    const { user, isLoading: loadingAuth } = useAuth()
-    const supabase = createClient()
+    const { user, isLoading: loadingAuth, supabase } = useAuth()
 
     const { data: profile, isLoading: loadingProfile } = useQuery({
         queryKey: ['profile', user?.id],
         queryFn: async () => {
             if (!user?.id) return null
-            const { data } = await supabase.from('users').select('*').eq('id', user.id).single()
+            const { data, error } = await supabase.from('users').select('*').eq('id', user.id).single()
+            if (error) {
+                console.error('Profile fetch error:', error)
+                return null
+            }
             return data
         },
         enabled: !!user?.id,
+        retry: false
     })
 
     const { data: subscription } = useQuery({

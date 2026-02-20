@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,9 +33,8 @@ export default function AdminPage() {
     const [loading, setLoading] = useState(true);
     const currentYear = new Date().getFullYear();
     const router = useRouter();
-    const supabase = createClient();
 
-    const { user, role, isLoading: authLoading } = useAuth();
+    const { user, supabase, role, isLoading: authLoading } = useAuth();
     const [users, setUsers] = useState<any[]>([]);
     const [taxBrackets, setTaxBrackets] = useState<any[]>([]);
     const [settings, setSettings] = useState<any>(null);

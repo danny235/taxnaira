@@ -5,7 +5,7 @@ import { useAuth } from '@/components/auth-provider';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle, Clock, Trash2, Eye, Loader2 } from 'lucide-react';
+import { FileText, CheckCircle, Clock, Trash2, Eye, Loader2, Sparkles } from 'lucide-react';
 import FileUploader from '@/components/upload/file-uploader';
 import TransactionParser from '@/components/upload/transaction-parser';
 import { toast } from 'sonner';
@@ -25,15 +25,11 @@ export default function UploadPage() {
     const [loadingFiles, setLoadingFiles] = useState(false);
     const [files, setFiles] = useState<any[]>([]);
 
-
-    const [userId, setUserId] = useState<string | null>(null);
-
     // Fetch user and files on mount
-    const { user } = useAuth();
+    const { user, isLoading: authLoading } = useAuth();
 
     React.useEffect(() => {
         if (user) {
-            setUserId(user.id);
             fetchFiles();
         }
     }, [user]);
@@ -56,13 +52,13 @@ export default function UploadPage() {
     const handleUploadComplete = (file: any, url: string) => {
         setUploadedFile(file);
         setFileUrl(url);
-        if (userId) fetchFiles();
+        if (user) fetchFiles();
     };
 
     const handleParseComplete = (count: number) => {
         setUploadedFile(null);
         setFileUrl(null);
-        if (userId) fetchFiles();
+        if (user) fetchFiles();
         toast.success(`${count} transactions saved successfully`);
     };
 
@@ -103,15 +99,15 @@ export default function UploadPage() {
                 {/* Upload Section */}
                 <div className="space-y-6">
                     <FileUploader
-                        userId={userId || undefined}
+                        userId={user?.id || undefined}
                         onUploadComplete={handleUploadComplete}
                     />
 
-                    {uploadedFile && uploadedFile.file_type === 'bank_statement' && userId && (
+                    {uploadedFile && uploadedFile.file_type === 'bank_statement' && user && (
                         <TransactionParser
                             fileUrl={fileUrl}
                             fileId={uploadedFile.id}
-                            userId={userId}
+                            userId={user.id}
                             // employmentType={profile?.employment_type} // Skipping profile for now or fetching it if needed
                             onComplete={handleParseComplete}
                         />
@@ -162,7 +158,22 @@ export default function UploadPage() {
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 self-end sm:self-auto ml-auto sm:ml-0">
-                                            <Button variant="ghost" size="icon" asChild>
+                                            {!file.processed && (
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 gap-1 h-8"
+                                                    onClick={() => {
+                                                        setUploadedFile(file);
+                                                        setFileUrl(file.file_url);
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    }}
+                                                >
+                                                    <Sparkles className="w-3.5 h-3.5" />
+                                                    Process
+                                                </Button>
+                                            )}
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
                                                 <a
                                                     href={file.file_url.startsWith('http') ? file.file_url : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/tax_documents/${file.file_url}`}
                                                     target="_blank"
@@ -174,6 +185,7 @@ export default function UploadPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
+                                                className="h-8 w-8"
                                                 onClick={() => handleDeleteFile(file)}
                                             >
                                                 <Trash2 className="w-4 h-4 text-red-400" />

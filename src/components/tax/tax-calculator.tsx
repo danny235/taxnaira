@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Calculator, Loader2, CheckCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/components/auth-provider';
 import { toast } from 'sonner';
 
 interface TaxCalculatorProps {
@@ -20,11 +20,10 @@ interface TaxCalculatorProps {
 }
 
 export default function TaxCalculator({ userId, transactions = [], taxBrackets = [], settings, employmentType, onCalculate }: TaxCalculatorProps) {
+    const { supabase } = useAuth();
     const [payeCredit, setPayeCredit] = useState(0);
     const [calculating, setCalculating] = useState(false);
     const [result, setResult] = useState<any>(null);
-
-    const supabase = createClient();
 
     // Employment-type-aware taxable income label
     const taxableIncomeLabel = {

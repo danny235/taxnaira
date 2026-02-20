@@ -12,8 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from 'sonner';
+import { useAuth } from '@/components/auth-provider';
 
 export default function TransactionsPage() {
+    const { user, supabase, isLoading: authLoading } = useAuth();
     const [filter, setFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [showAddDialog, setShowAddDialog] = useState(false);
@@ -27,23 +29,18 @@ export default function TransactionsPage() {
     const [saving, setSaving] = useState(false);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [userId, setUserId] = useState<string | null>(null);
 
-    const supabase = createClient();
     const currentYear = new Date().getFullYear();
 
     useEffect(() => {
-        const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+        if (!authLoading) {
             if (user) {
-                setUserId(user.id);
                 fetchTransactions(user.id);
             } else {
                 setLoading(false);
             }
-        };
-        init();
-    }, []);
+        }
+    }, [user, authLoading]);
 
     const fetchTransactions = async (uid: string) => {
         setLoading(true);
@@ -108,7 +105,7 @@ export default function TransactionsPage() {
                 category: '',
                 currency: 'NGN'
             });
-            fetchTransactions(userId);
+            if (user) fetchTransactions(user.id);
             toast.success('Transaction added');
         } catch (error: any) {
             toast.error("Failed to add transaction: " + error.message);

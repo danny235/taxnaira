@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
+import { useAuth } from '@/components/auth-provider';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, MapPin, Briefcase, Bell, Shield, Loader2, Save, CheckCircle } from 'lucide-react';
-import { toast } from 'sonner';
 
 const STATES = [
     "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
@@ -27,9 +27,9 @@ const EMPLOYMENT_TYPES = [
 ];
 
 export default function SettingsPage() {
+    const { user, supabase, isLoading: authLoading } = useAuth();
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [user, setUser] = useState<any>(null);
     const [profileId, setProfileId] = useState<string | null>(null);
 
     const [formData, setFormData] = useState({
@@ -43,20 +43,16 @@ export default function SettingsPage() {
         trades_crypto: false
     });
 
-    const supabase = createClient();
-
     useEffect(() => {
         const init = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
             if (user) {
-                setUser(user);
                 fetchProfile(user.id);
             } else {
                 setLoading(false);
             }
         };
-        init();
-    }, []);
+        if (!authLoading) init();
+    }, [user, authLoading]);
 
     const fetchProfile = async (uid: string) => {
         const { data } = await supabase.from('users').select('*').eq('id', uid).single();
@@ -115,7 +111,7 @@ export default function SettingsPage() {
         }
     };
 
-    if (loading) {
+    if (loading || authLoading) {
         return (
             <div className="flex items-center justify-center h-96">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
