@@ -141,3 +141,69 @@ export async function extractDataFromPdfBuffer(buffer: Buffer) {
     throw error;
   }
 }
+
+export async function categorizeTransactionsBatch(
+  transactions: { description: string; amount: number; is_income: boolean }[],
+) {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  const prompt = `
+    You are a Nigerian tax expert assistant. Your task is to categorize a batch of financial transactions for a P&L statement.
+    
+    SYSTEM CATEGORIES:
+    Income: 
+    - 'salary': Regular employment income.
+    - 'business_revenue': Income from business operations or sales.
+    - 'freelance_income': Income from freelance work or gig economy.
+    - 'foreign_income': Income received in foreign currency.
+    - 'capital_gains': Profit from sale of assets.
+    - 'crypto_sale': Profit from cryptocurrency sales.
+    - 'other_income': Any other business-related income.
+
+    Expenses:
+    - 'rent': Office/business rent.
+    - 'utilities': Business power, water, internet.
+    - 'food': Business meals/dining.
+    - 'transportation': Business travel or logistics.
+    - 'business_expenses': General operational expenses.
+    - 'pension_contributions': Employee pension.
+    - 'nhf_contributions': National Housing Fund.
+    - 'insurance': Business insurance.
+    - 'transfers': Money transfers (categorize based on context).
+    - 'crypto_purchase': Business crypto buys.
+    - 'miscellaneous': General deductible expenses.
+
+    For each transaction, determine the most likely category and provide a confidence score (0.0 to 1.0).
+    
+    TRANSACTIONS TO CATEGORIZE:
+    ${JSON.stringify(transactions, null, 2)}
+
+    Return ONLY a JSON array of objects in the same order, each with:
+    {
+      "category": "string",
+      "confidence": number
+    }
+  `;
+
+  try {
+    const result = await retry(() => model.generateContent(prompt));
+    const text = result.response.text();
+    const jsonString = text.replace(/```json|```/gi, "").trim();
+    const categories = JSON.parse(jsonString);
+
+    return transactions.map((tx, i) => ({
+      ...tx,
+      category:
+        categories[i]?.category ||
+        (tx.is_income ? "other_income" : "miscellaneous"),
+      ai_confidence: categories[i]?.confidence || 0,
+    }));
+  } catch (error) {
+    console.error("Gemini Batch Categorization Error:", error);
+    return transactions.map((tx) => ({
+      ...tx,
+      category: tx.is_income ? "other_income" : "miscellaneous",
+      ai_confidence: 0,
+    }));
+  }
+}

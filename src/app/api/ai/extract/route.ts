@@ -202,6 +202,36 @@ export async function POST(req: NextRequest) {
       // No automatic AI fallback here either
     }
 
+    // 5. Refinement Step: If we have transactions from non-AI sources, refine categories with AI
+    if (transactions && transactions.length > 0) {
+      console.log(
+        `🤖 Refining categorization for ${transactions.length} transactions via Gemini...`,
+      );
+      try {
+        const { categorizeTransactionsBatch } = await import("@/lib/gemini");
+        const refined = await categorizeTransactionsBatch(
+          transactions.map((tx) => ({
+            description: tx.description,
+            amount: tx.amount,
+            is_income: tx.is_income,
+          })),
+        );
+
+        // Merge refined categories back into transactions
+        transactions = transactions.map((tx, i) => ({
+          ...tx,
+          category: refined[i]?.category || tx.category,
+          ai_confidence: refined[i]?.ai_confidence ?? 0,
+        }));
+        console.log("✨ Categorization refinement complete.");
+      } catch (refineError) {
+        console.error(
+          "Categorization refinement failed, returning original:",
+          refineError,
+        );
+      }
+    }
+
     return NextResponse.json({ transactions });
   } catch (error: any) {
     console.error("AI Preview API Error:", error);

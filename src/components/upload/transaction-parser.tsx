@@ -269,11 +269,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                             </TableCell>
                                             <TableCell>
                                                 {tx.category ? (
-                                                    <Badge variant="outline" className="text-xs">
+                                                    <Badge variant="outline" className="text-[10px] h-5 py-0">
                                                         {categoryLabels[tx.category] || tx.category}
                                                     </Badge>
                                                 ) : (
-                                                    <span className="text-slate-400 text-xs">Pending</span>
+                                                    <span className="text-slate-400 text-[10px]">Pending</span>
                                                 )}
                                             </TableCell>
                                         </TableRow>
