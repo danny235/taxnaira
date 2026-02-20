@@ -39,7 +39,7 @@ export async function parseGenericStatement(text: string) {
             description: description,
             amount: amount,
             is_income: detectIncome(line, description),
-            category: categorize(description),
+            category: categorize(description, detectIncome(line, description)),
             ai_confidence: 0.5,
           });
         }
@@ -90,9 +90,26 @@ function detectIncome(line: string, description: string): boolean {
   return false; // Default to expense if unsure
 }
 
-function categorize(description: string): string {
+function categorize(description: string, isIncome: boolean): string {
   const lower = description.toLowerCase();
-  if (lower.includes("salary") || lower.includes("payroll")) return "salary";
+
+  if (isIncome) {
+    if (lower.includes("salary") || lower.includes("payroll")) return "salary";
+    if (
+      lower.includes("revenue") ||
+      lower.includes("sales") ||
+      lower.includes("business")
+    )
+      return "business_revenue";
+    if (
+      lower.includes("fiverr") ||
+      lower.includes("upwork") ||
+      lower.includes("freelance")
+    )
+      return "freelance_income";
+    return "other_income";
+  }
+
   if (
     lower.includes("uber") ||
     lower.includes("bolt") ||

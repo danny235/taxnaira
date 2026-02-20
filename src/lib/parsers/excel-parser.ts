@@ -198,7 +198,7 @@ export async function parseExcelStatement(buffer: Buffer) {
         description: description,
         amount: amount,
         is_income: isIncome, // isIncome is already determined by credit/debit columns or detectIncome fallback
-        category: categorize(description),
+        category: categorize(description, isIncome),
         ai_confidence: 0.9,
       });
     } else if (idx < 10) {
@@ -259,10 +259,47 @@ function detectIncome(
   return false;
 }
 
-function categorize(description: string): string {
+function categorize(description: string, isIncome: boolean): string {
   const lower = description.toLowerCase();
-  if (lower.includes("salary")) return "salary";
-  if (lower.includes("uber") || lower.includes("bolt")) return "transportation";
-  if (lower.includes("food") || lower.includes("restaurant")) return "food";
+
+  if (isIncome) {
+    if (lower.includes("salary") || lower.includes("payroll")) return "salary";
+    if (
+      lower.includes("revenue") ||
+      lower.includes("sales") ||
+      lower.includes("business")
+    )
+      return "business_revenue";
+    if (
+      lower.includes("fiverr") ||
+      lower.includes("upwork") ||
+      lower.includes("freelance")
+    )
+      return "freelance_income";
+    return "other_income";
+  }
+
+  if (
+    lower.includes("uber") ||
+    lower.includes("bolt") ||
+    lower.includes("transport")
+  )
+    return "transportation";
+  if (
+    lower.includes("food") ||
+    lower.includes("restaurant") ||
+    lower.includes("eatery")
+  )
+    return "food";
+  if (lower.includes("rent") || lower.includes("lease")) return "rent";
+  if (lower.includes("pension")) return "pension_contributions";
+  if (
+    lower.includes("mtn") ||
+    lower.includes("glo") ||
+    lower.includes("airtime") ||
+    lower.includes("data")
+  )
+    return "utilities";
+
   return "expense";
 }
