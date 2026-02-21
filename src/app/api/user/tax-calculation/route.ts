@@ -42,13 +42,20 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    const { tax_year, total_income, taxable_income, final_tax_liability } =
+      body;
 
     const { data, error } = await supabase
       .from("tax_calculations")
       .upsert(
         {
-          ...body,
           user_id: user.id,
+          tax_year,
+          total_income,
+          taxable_income,
+          tax_due: final_tax_liability || 0,
+          calculation_details: body,
+          updated_at: new Date().toISOString(),
         },
         {
           onConflict: "user_id,tax_year",

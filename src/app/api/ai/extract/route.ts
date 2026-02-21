@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { fileId, fileUrl } = await req.json();
+    const { fileId, fileUrl, accountType, importRules } = await req.json();
 
     if (!fileId || !fileUrl) {
       return NextResponse.json(
@@ -81,6 +81,10 @@ export async function POST(req: NextRequest) {
       .select("*")
       .eq("id", user.id)
       .single();
+
+    const userContext = profile ? { ...profile } : {};
+    if (accountType) userContext.accountType = accountType;
+    if (importRules) userContext.importRules = importRules;
 
     let transactions = [];
     const fileName = fileRecord.file_name.toLowerCase();
@@ -167,6 +171,18 @@ export async function POST(req: NextRequest) {
             console.log(
               `🤖 Rule-based results low (${transactions.length}). Falling back to AI (Gemini preferred) as requested via flag...`,
             );
+
+            // Check credits before AI fallback
+            if ((profile?.credit_balance || 0) < 1) {
+              return NextResponse.json(
+                {
+                  error:
+                    "Insufficient credits for AI extraction. Please top up.",
+                },
+                { status: 402 },
+              );
+            }
+
             const buffer = Buffer.from(await fileBlob.arrayBuffer());
 
             // Try Gemini first (Higher free limits)
@@ -175,16 +191,26 @@ export async function POST(req: NextRequest) {
                 console.log("📄 Using Gemini native PDF buffer extraction...");
                 const { extractDataFromPdfBuffer } =
                   await import("@/lib/gemini");
-                transactions = await extractDataFromPdfBuffer(buffer, profile);
+                transactions = await extractDataFromPdfBuffer(
+                  buffer,
+                  userContext,
+                );
               } else {
                 const { extractDataFromStatement: extractWithGemini } =
                   await import("@/lib/gemini");
                 transactions = await extractWithGemini(
                   fileContent,
                   fileRecord.file_type,
-                  profile,
+                  userContext,
                 );
               }
+
+              // Deduct credit for AI extraction
+              await supabase
+                .from("users")
+                .update({ credit_balance: (profile.credit_balance || 0) - 1 })
+                .eq("id", user.id);
+
               console.log(
                 `✨ Gemini extraction successful: ${transactions.length} transactions found.`,
               );
@@ -197,6 +223,12 @@ export async function POST(req: NextRequest) {
                 fileContent,
                 fileRecord.file_type,
               );
+
+              // Deduct credit for OpenAI extraction too
+              await supabase
+                .from("users")
+                .update({ credit_balance: (profile.credit_balance || 0) - 1 })
+                .eq("id", user.id);
             }
           } else {
             console.log(
@@ -215,6 +247,15 @@ export async function POST(req: NextRequest) {
       console.log(
         `🤖 Refining categorization for ${transactions.length} transactions via Gemini...`,
       );
+
+      // Check credits before refinement
+      if ((profile?.credit_balance || 0) < 1) {
+        return NextResponse.json(
+          { error: "Insufficient credits for AI refinement. Please top up." },
+          { status: 402 },
+        );
+      }
+
       try {
         const { categorizeTransactionsBatch } = await import("@/lib/gemini");
         const refined = await categorizeTransactionsBatch(
@@ -223,8 +264,14 @@ export async function POST(req: NextRequest) {
             amount: tx.amount,
             is_income: tx.is_income,
           })),
-          profile, // Pass profile as userContext
+          userContext, // Pass context with rules
         );
+
+        // Deduct 1 credit for refinement
+        await supabase
+          .from("users")
+          .update({ credit_balance: (profile.credit_balance || 0) - 1 })
+          .eq("id", user.id);
 
         // Merge refined categories back into transactions
         transactions = transactions.map((tx, i) => ({

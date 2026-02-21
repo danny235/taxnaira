@@ -1,4 +1,5 @@
 import { PdfReader } from "pdfreader";
+import { categorizeTransaction } from "./rule-categorizer";
 
 /**
  * Simple text extractor using pdfreader
@@ -143,7 +144,7 @@ function processRows(rows: any): any[] {
             description,
             amount: val,
             is_income: detectIncome(rowText, description),
-            category: categorize(
+            category: categorizeTransaction(
               description,
               detectIncome(rowText, description),
             ),
@@ -196,48 +197,4 @@ function detectIncome(line: string, description: string): boolean {
   for (const kw of expenseKeywords) if (lower.includes(kw)) return false;
 
   return false;
-}
-
-function categorize(description: string, isIncome: boolean): string {
-  const lower = description.toLowerCase();
-
-  if (isIncome) {
-    if (lower.includes("salary") || lower.includes("payroll")) return "salary";
-    if (
-      lower.includes("revenue") ||
-      lower.includes("sales") ||
-      lower.includes("business")
-    )
-      return "business revenue";
-    if (
-      lower.includes("fiverr") ||
-      lower.includes("upwork") ||
-      lower.includes("freelance")
-    )
-      return "freelance income";
-    return "other income";
-  }
-
-  if (
-    lower.includes("uber") ||
-    lower.includes("bolt") ||
-    lower.includes("transport")
-  )
-    return "transportation";
-  if (
-    lower.includes("restaurant") ||
-    lower.includes("eatery") ||
-    lower.includes("food")
-  )
-    return "food";
-  if (lower.includes("rent")) return "rent";
-  if (lower.includes("pension")) return "pension contributions";
-  if (
-    lower.includes("airtime") ||
-    lower.includes("data") ||
-    lower.includes("mtn") ||
-    lower.includes("glo")
-  )
-    return "utilities";
-  return "expense";
 }

@@ -161,71 +161,69 @@ export default function TaxCalculatorPage() {
 
             <Disclaimer />
 
-            <SubscriptionGate requiredPlan="pro" currentPlan={subscription?.plan} feature="Tax Calculator">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-6">
-                        {/* Tax Info */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-6">
+                    {/* Tax Info */}
+                    <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm text-foreground">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-lg">Your Tax Information</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p className="text-slate-500">Total Transactions</p>
+                                    <p className="font-semibold">{transactions.length}</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-500">Employment Type</p>
+                                    <p className="font-semibold capitalize">{profile?.employment_type?.replace('_', ' ') || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-500">Exemption Threshold</p>
+                                    <p className="font-semibold">₦{(settings?.exemption_threshold || 800000).toLocaleString()}</p>
+                                </div>
+                                <div>
+                                    <p className="text-slate-500">Tax Year</p>
+                                    <p className="font-semibold">{currentYear}</p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Tax Brackets */}
+                    {taxBrackets.length > 0 && (
                         <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm text-foreground">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-lg">Your Tax Information</CardTitle>
+                                <CardTitle className="text-lg">Tax Brackets</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <p className="text-slate-500">Total Transactions</p>
-                                        <p className="font-semibold">{transactions.length}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500">Employment Type</p>
-                                        <p className="font-semibold capitalize">{profile?.employment_type?.replace('_', ' ') || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500">Exemption Threshold</p>
-                                        <p className="font-semibold">₦{(settings?.exemption_threshold || 800000).toLocaleString()}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-slate-500">Tax Year</p>
-                                        <p className="font-semibold">{currentYear}</p>
-                                    </div>
+                            <CardContent>
+                                <div className="space-y-2">
+                                    {taxBrackets.sort((a, b) => a.min_amount - b.min_amount).map((bracket, i) => (
+                                        <div key={i} className="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-700/30 text-sm">
+                                            <span className="text-slate-600 dark:text-slate-400">
+                                                ₦{bracket.min_amount.toLocaleString()} - {bracket.max_amount === -1 ? '∞' : `₦${bracket.max_amount.toLocaleString()}`}
+                                            </span>
+                                            <span className="font-semibold">{bracket.rate}%</span>
+                                        </div>
+                                    ))}
                                 </div>
                             </CardContent>
                         </Card>
-
-                        {/* Tax Brackets */}
-                        {taxBrackets.length > 0 && (
-                            <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm text-foreground">
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-lg">Tax Brackets</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-2">
-                                        {taxBrackets.sort((a, b) => a.min_amount - b.min_amount).map((bracket, i) => (
-                                            <div key={i} className="flex justify-between items-center p-2 rounded bg-slate-50 dark:bg-slate-700/30 text-sm">
-                                                <span className="text-slate-600 dark:text-slate-400">
-                                                    ₦{bracket.min_amount.toLocaleString()} - {bracket.max_amount === -1 ? '∞' : `₦${bracket.max_amount.toLocaleString()}`}
-                                                </span>
-                                                <span className="font-semibold">{bracket.rate}%</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                    </div>
-
-                    <div className="space-y-6">
-                        <TaxSummaryCard calculation={calculation} settings={settings} />
-                        <TaxCalculator
-                            userId={user?.id}
-                            transactions={transactions}
-                            taxBrackets={taxBrackets}
-                            settings={settings}
-                            employmentType={profile?.employment_type}
-                            onCalculate={handleCalculate}
-                        />
-                    </div>
+                    )}
                 </div>
-            </SubscriptionGate>
+
+                <div className="space-y-6">
+                    <TaxSummaryCard calculation={calculation} settings={settings} />
+                    <TaxCalculator
+                        userId={user?.id}
+                        transactions={transactions}
+                        taxBrackets={taxBrackets}
+                        settings={settings}
+                        employmentType={profile?.employment_type}
+                        onCalculate={handleCalculate}
+                    />
+                </div>
+            </div>
         </div>
     );
 }

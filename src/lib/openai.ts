@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { categorizeTransaction } from "./parsers/rule-categorizer";
 
 const apiKey = process.env.OPENAI_API_KEY;
 
@@ -20,6 +21,13 @@ export async function classifyTransaction(description: string) {
     - 'foreign_income': Income received in foreign currency (USD, GBP, etc).
     - 'capital_gains': Profit from sale of assets.
     - 'crypto_sale': Profit from cryptocurrency sales.
+    - 'subscriptions': Recurring service payments (AWS, Google Workspace, Netflix, etc).
+    - 'professional_fees': Payments for legal, accounting, or consulting services.
+    - 'maintenance': Repairs, office upkeep, or equipment servicing.
+    - 'health': Business-related health costs.
+    - 'donations': Corporate social responsibility or charity.
+    - 'tax_payments': Direct tax payments (FIRS, LIRS, WHT, VAT).
+    - 'bank_charges': Account maintenance, SMS fees, transfer fees, stamp duties.
     - 'expense': Any business or deductible expense.
     - 'personal_expense': Non-deductible personal spending.
     - 'pension_contributions': Employee contributions to pension.
@@ -55,7 +63,7 @@ export async function classifyTransaction(description: string) {
   } catch (error) {
     console.error("OpenAI Classification Error:", error);
     return {
-      category: "other_income",
+      category: categorizeTransaction(description, false),
       confidence: 0,
       reasoning: "Error during classification",
     };
@@ -118,7 +126,7 @@ async function processChunk(chunkData: string, fileType: string) {
     - description: (string)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Use categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, expense)
+    - category: (Use categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal_expense)
 
     Content:
     ${chunkData}

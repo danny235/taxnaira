@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { robustParseDate } from "../utils/date-utils";
+import { categorizeTransaction } from "./rule-categorizer";
 
 /**
  * Excel/CSV Parser
@@ -218,7 +219,7 @@ export async function parseExcelStatement(buffer: Buffer) {
         description: description,
         amount: amount,
         is_income: isIncome, // isIncome is already determined by credit/debit columns or detectIncome fallback
-        category: categorize(description, isIncome),
+        category: categorizeTransaction(description, isIncome),
         ai_confidence: 0.9,
       });
     } else if (idx < 10) {
@@ -276,49 +277,4 @@ function detectIncome(
   if (desc.includes("debit") || desc.includes("payment to")) return false;
 
   return false;
-}
-
-function categorize(description: string, isIncome: boolean): string {
-  const lower = description.toLowerCase();
-
-  if (isIncome) {
-    if (lower.includes("salary") || lower.includes("payroll")) return "salary";
-    if (
-      lower.includes("revenue") ||
-      lower.includes("sales") ||
-      lower.includes("business")
-    )
-      return "business revenue";
-    if (
-      lower.includes("fiverr") ||
-      lower.includes("upwork") ||
-      lower.includes("freelance")
-    )
-      return "freelance income";
-    return "other income";
-  }
-
-  if (
-    lower.includes("uber") ||
-    lower.includes("bolt") ||
-    lower.includes("transport")
-  )
-    return "transportation";
-  if (
-    lower.includes("food") ||
-    lower.includes("restaurant") ||
-    lower.includes("eatery")
-  )
-    return "food";
-  if (lower.includes("rent") || lower.includes("lease")) return "rent";
-  if (lower.includes("pension")) return "pension contributions";
-  if (
-    lower.includes("mtn") ||
-    lower.includes("glo") ||
-    lower.includes("airtime") ||
-    lower.includes("data")
-  )
-    return "utilities";
-
-  return "expense";
 }

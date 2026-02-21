@@ -6,8 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import Link from 'next/link';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -24,11 +28,19 @@ const categoryLabels: Record<string, string> = {
     food: 'Food',
     transportation: 'Transport',
     business_expenses: 'Business Exp.',
+    subscriptions: 'Subscription',
+    professional_fees: 'Prof. Fees',
+    maintenance: 'Maintenance',
+    health: 'Health',
+    donations: 'Donations',
+    tax_payments: 'Tax Payout',
+    bank_charges: 'Bank Charges',
     pension_contributions: 'Pension',
     nhf_contributions: 'NHF',
     insurance: 'Insurance',
     transfers: 'Transfer',
     crypto_purchase: 'Crypto Buy',
+    personal_expense: 'Personal',
     miscellaneous: 'Misc'
 };
 
@@ -60,14 +72,26 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     const [selected, setSelected] = useState<Record<number, boolean>>({});
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const hasStarted = useRef(false);
+
+    const [accountType, setAccountType] = useState('personal');
+    const [importRules, setImportRules] = useState('');
+    const [creditBalance, setCreditBalance] = useState<number | null>(null);
 
     useEffect(() => {
-        if (fileUrl && !hasStarted.current) {
-            hasStarted.current = true;
-            parseFile();
+        fetchBalance();
+    }, []);
+
+    const fetchBalance = async () => {
+        try {
+            const res = await fetch('/api/user/profile');
+            const data = await res.json();
+            setCreditBalance(data.credit_balance ?? 0);
+        } catch (e) {
+            console.error("Failed to fetch balance:", e);
         }
-    }, [fileUrl]);
+    };
+
+
 
     const parseFile = async () => {
         setParsing(true);
@@ -77,8 +101,14 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
             const response = await fetch('/api/ai/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileId, fileUrl })
+                body: JSON.stringify({ fileId, fileUrl, accountType, importRules })
             });
+
+            if (response.status === 402) {
+                setError("Insufficient credits. Please top up your account to use AI extraction.");
+                setParsing(false);
+                return;
+            }
 
             const data = await response.json();
 
@@ -103,6 +133,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
             setTransactions(withIds);
             setSelected(Object.fromEntries(withIds.map((tx: any) => [tx.tempId, true])));
             setParsing(false);
+            fetchBalance(); // Refresh balance after deduction
 
             toast.success(`AI extracted ${withIds.length} transactions`);
         } catch (e: any) {
@@ -198,18 +229,79 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 )}
 
                 {transactions.length === 0 ? (
-                    <div className="text-center py-8">
-                        <p className="text-slate-500 mb-4">Click to extract transactions from your file</p>
-                        <Button onClick={parseFile} disabled={parsing} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
-                            {parsing ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    <span>Extracting...</span>
-                                </>
-                            ) : (
-                                'Extract Transactions'
-                            )}
-                        </Button>
+                    <div className="py-6 space-y-6">
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-sm font-medium mb-3">Account Type</h3>
+                                <RadioGroup
+                                    defaultValue="personal"
+                                    value={accountType}
+                                    onValueChange={setAccountType}
+                                    className="flex flex-col sm:flex-row gap-4"
+                                >
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="personal" id="personal" />
+                                        <Label htmlFor="personal" className="cursor-pointer">Personal</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="business" id="business" />
+                                        <Label htmlFor="business" className="cursor-pointer">Business</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="mixed" id="mixed" />
+                                        <Label htmlFor="mixed" className="cursor-pointer">Mixed</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="import-rules">Custom Import Rules (Optional)</Label>
+                                <p className="text-xs text-slate-500">
+                                    Help the AI categorize your transactions by providing keyword mappings.
+                                    For example: <br />
+                                    Food: pizza, KFC, shawarma<br />
+                                    Business spending: Shop rent, Goods, Shipping fee
+                                </p>
+                                <Textarea
+                                    id="import-rules"
+                                    placeholder="Food: pizza, KFC&#10;Personal spending: bolt, MTN&#10;Business spending: Shop rent, Shipping fee"
+                                    value={importRules}
+                                    onChange={(e) => setImportRules(e.target.value)}
+                                    className="min-h-[100px]"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 text-sm">
+                                <span className="text-slate-500">Available Credits:</span>
+                                <span className={cn(
+                                    "font-bold px-2 py-0.5 rounded-full",
+                                    (creditBalance || 0) > 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+                                )}>
+                                    {creditBalance !== null ? creditBalance : '...'}
+                                </span>
+                                {(creditBalance === 0) && (
+                                    <Link href="/subscription">
+                                        <Button variant="link" size="sm" className="text-emerald-600 h-auto p-0">Top up</Button>
+                                    </Link>
+                                )}
+                            </div>
+                            <Button
+                                onClick={parseFile}
+                                disabled={parsing || (creditBalance !== null && creditBalance < 1)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
+                            >
+                                {parsing ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        <span>Extracting...</span>
+                                    </>
+                                ) : (
+                                    'Extract Transactions'
+                                )}
+                            </Button>
+                        </div>
                     </div>
                 ) : (
                     <>

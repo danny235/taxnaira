@@ -10,41 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Crown, Zap, Shield, Loader2, Coins } from 'lucide-react';
 import { toast } from 'sonner';
 
-const PLANS = [
-    {
-        name: 'Free',
-        id: 'free',
-        price: '₦0',
-        description: 'Basic tax tracking for individuals',
-        features: ['Manual transactions', 'Basic tax estimation', 'Single tax year'],
-        buttonText: 'Current Plan',
-        current: true
-    },
-    {
-        name: 'Pro',
-        id: 'pro',
-        price: '₦5,000',
-        period: '/year',
-        description: 'Perfect for small business owners',
-        features: ['Automated PDF extraction', 'AI categorization', 'Multiple tax years', 'Priority support'],
-        buttonText: 'Upgrade to Pro',
-        popular: true
-    },
-    {
-        name: 'Premium',
-        id: 'premium',
-        price: '₦15,000',
-        period: '/year',
-        description: 'Comprehensive tax management',
-        features: ['Unlimited AI extraction', 'P&L Statement export', 'Advanced tax planning', 'Dedicated accountant chat'],
-        buttonText: 'Get Premium'
-    }
-];
-
 const CREDIT_PACKS = [
-    { id: 'pack_10', name: 'Lite Pack', credits: 10, price: 1000, color: 'from-blue-500 to-cyan-500' },
-    { id: 'pack_50', name: 'Business Pack', credits: 50, price: 4000, color: 'from-emerald-500 to-teal-500', popular: true },
-    { id: 'pack_100', name: 'Power Pack', credits: 100, price: 7500, color: 'from-purple-500 to-pink-500' },
+    { id: 'pack_250', name: 'Elite Pack', credits: 250, price: 4000, color: 'from-emerald-500 to-teal-500' },
+    { id: 'pack_500', name: 'Growth Pack', credits: 500, price: 7500, color: 'from-blue-500 to-cyan-500', popular: true },
+    { id: 'pack_950', name: 'Enterprise Pack', credits: 950, price: 15000, color: 'from-purple-500 to-pink-500' },
 ];
 
 export default function SubscriptionPage() {
@@ -60,18 +29,8 @@ export default function SubscriptionPage() {
         }
     });
 
-    const { data: subscription, isLoading: subLoading } = useQuery({
-        queryKey: ['subscription', user?.id],
-        queryFn: async () => {
-            const res = await fetch('/api/user/subscription');
-            return res.json();
-        }
-    });
-
     const buyCreditsMutation = useMutation({
         mutationFn: async (packId: string) => {
-            // For now, we'll simulate a successful purchase
-            // In a real implementation, this would involve Paystack initialization
             const res = await fetch('/api/user/profile', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -93,7 +52,7 @@ export default function SubscriptionPage() {
         }
     });
 
-    if (profileLoading || subLoading) {
+    if (profileLoading) {
         return (
             <div className="flex items-center justify-center h-screen">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
@@ -104,9 +63,9 @@ export default function SubscriptionPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-12 pb-12">
             <div className="text-center space-y-4">
-                <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">Subscription & Credits</h1>
+                <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white">Credits & Top-ups</h1>
                 <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-                    Choose the plan that fits your needs or top up with credits for high-performance extraction features.
+                    Top up with credits to power your AI extraction and financial analysis.
                 </p>
             </div>
 
@@ -122,13 +81,13 @@ export default function SubscriptionPage() {
                             {profile?.credit_balance || 0} <span className="text-2xl font-normal text-slate-400">Credits</span>
                         </div>
                         <p className="text-slate-500 max-w-sm">
-                            Use credits for AI-powered PDF extraction and categorization. 1 Credit = 1 Document.
+                            Use credits for AI-powered PDF extraction, categorization, and advanced financial insights.
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full md:w-auto">
                         {CREDIT_PACKS.map((pack) => (
-                            <Card key={pack.id} className="relative overflow-hidden group hover:shadow-lg transition-all border-0 shadow-sm">
+                            <Card key={pack.id} className="relative overflow-hidden group hover:shadow-lg transition-all border-0 shadow-sm min-w-[200px]">
                                 {pack.popular && (
                                     <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">
                                         BEST VALUE
@@ -156,57 +115,6 @@ export default function SubscriptionPage() {
                     </div>
                 </div>
             </section>
-
-            {/* Plans Section */}
-            <div className="grid lg:grid-cols-3 gap-8 px-4 sm:px-0">
-                {PLANS.map((plan) => (
-                    <Card key={plan.id} className={cn(
-                        "relative flex flex-col transition-all duration-300",
-                        plan.popular ? "border-emerald-500 shadow-xl scale-105 z-10" : "hover:shadow-lg",
-                        plan.id === subscription?.plan && "border-2 border-emerald-500 ring-4 ring-emerald-500/10"
-                    )}>
-                        {plan.popular && (
-                            <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 bg-emerald-500 text-white px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase">
-                                Most Popular
-                            </div>
-                        )}
-
-                        <CardHeader className="text-center pt-8">
-                            <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                            <CardDescription>{plan.description}</CardDescription>
-                            <div className="mt-4 flex items-baseline justify-center gap-1">
-                                <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                                {plan.period && <span className="text-slate-500">{plan.period}</span>}
-                            </div>
-                        </CardHeader>
-
-                        <CardContent className="flex-1 space-y-4">
-                            <div className="space-y-2">
-                                {plan.features.map((feature) => (
-                                    <div key={feature} className="flex items-start gap-3 text-sm">
-                                        <Check className="w-4 h-4 text-emerald-500 mt-0.5" />
-                                        <span className="text-slate-600 dark:text-slate-400">{feature}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-
-                        <CardFooter className="pb-8">
-                            <Button
-                                variant={plan.id === subscription?.plan ? "outline" : (plan.popular ? "default" : "secondary")}
-                                className={cn(
-                                    "w-full h-12 text-lg font-semibold",
-                                    plan.id === subscription?.plan && "border-emerald-500 text-emerald-600 hover:bg-emerald-50",
-                                    plan.popular && plan.id !== subscription?.plan && "bg-emerald-600 hover:bg-emerald-700 text-white"
-                                )}
-                                disabled={plan.id === subscription?.plan}
-                            >
-                                {plan.id === subscription?.plan ? "Active Plan" : plan.buttonText}
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                ))}
-            </div>
 
             {/* FAQ or Comparison Teaser */}
             <div className="text-center space-y-2">

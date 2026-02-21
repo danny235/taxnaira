@@ -222,6 +222,46 @@ export default function AdminPage() {
         setShowBracketDialog(true);
     };
 
+    const [showUserDialog, setShowUserDialog] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<any>(null);
+    const [userForm, setUserForm] = useState({
+        role: 'user',
+        credit_balance: 0
+    });
+
+    const handleUpdateUser = async () => {
+        setSaving(true);
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: selectedUser.id,
+                    role: userForm.role,
+                    credit_balance: Number(userForm.credit_balance)
+                }),
+            });
+
+            if (!res.ok) throw new Error('Failed to update user');
+            toast.success('User updated successfully');
+            setShowUserDialog(false);
+            fetchUsers();
+        } catch (error: any) {
+            toast.error("Failed to update user");
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openManageUser = (u: any) => {
+        setSelectedUser(u);
+        setUserForm({
+            role: u.role || 'user',
+            credit_balance: u.credit_balance || 0
+        });
+        setShowUserDialog(true);
+    };
+
     const userStats = {
         total: users.length,
         admins: users.filter(u => u.role === 'admin').length,
@@ -450,29 +490,86 @@ export default function AdminPage() {
 
                 <TabsContent value="users" className="mt-6">
                     <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
-                        <CardHeader>
+                        <CardHeader className="flex-row items-center justify-between">
                             <CardTitle className="text-lg">Users</CardTitle>
+                            <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Manage User: {selectedUser?.full_name || selectedUser?.email}</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4 pt-4">
+                                        <div>
+                                            <Label>Role</Label>
+                                            <select
+                                                className="w-full mt-1 p-2 rounded-md border border-slate-200 dark:border-slate-800 bg-transparent"
+                                                value={userForm.role}
+                                                onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
+                                            >
+                                                <option value="user">User</option>
+                                                <option value="admin">Admin</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <Label>Credit Balance</Label>
+                                            <Input
+                                                type="number"
+                                                value={userForm.credit_balance}
+                                                onChange={(e) => setUserForm({ ...userForm, credit_balance: Number(e.target.value) })}
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                        <Button
+                                            onClick={handleUpdateUser}
+                                            disabled={saving}
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                                        >
+                                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update User'}
+                                        </Button>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
                         </CardHeader>
                         <CardContent>
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Name</TableHead>
+                                        <TableHead>User / Email</TableHead>
                                         <TableHead>Role</TableHead>
+                                        <TableHead>Credits</TableHead>
                                         <TableHead>Joined</TableHead>
+                                        <TableHead className="w-[100px]">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {users.map((u) => (
                                         <TableRow key={u.id}>
-                                            <TableCell className="font-medium">{u.full_name || '-'}</TableCell>
                                             <TableCell>
-                                                <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
+                                                <div className="font-medium text-slate-900 dark:text-white">{u.full_name || 'Anonymous'}</div>
+                                                <div className="text-xs text-slate-500">{u.email}</div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge
+                                                    className={u.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200'}
+                                                    variant="outline"
+                                                >
                                                     {u.role || 'user'}
                                                 </Badge>
                                             </TableCell>
+                                            <TableCell className="font-medium">
+                                                {u.credit_balance || 0}
+                                            </TableCell>
                                             <TableCell className="text-slate-500">
                                                 {u.created_at ? format(new Date(u.created_at), 'MMM d, yyyy') : '-'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                                    onClick={() => openManageUser(u)}
+                                                >
+                                                    Manage
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}

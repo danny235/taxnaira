@@ -1,12 +1,89 @@
-
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileText, Crown, Download } from 'lucide-react'
+import { FileText, Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '@/components/auth-provider'
+import {
+    generateIncomeSummaryPDF,
+    generateTaxComputationPDF,
+    generateExpenseAuditPDF
+} from '@/lib/pdf-reports'
+import { toast } from 'sonner'
 
 export default function ReportsPage() {
+    const { user } = useAuth()
+    const currentYear = new Date().getFullYear()
+    const [generating, setGenerating] = useState<string | null>(null)
+
+    const { data: profile } = useQuery({
+        queryKey: ['profile', user?.id],
+        queryFn: async () => {
+            const res = await fetch('/api/user/profile')
+            if (!res.ok) return null
+            return res.json()
+        },
+        enabled: !!user?.id,
+    })
+
+    const { data: transactions = [] } = useQuery({
+        queryKey: ['transactions', user?.id],
+        queryFn: async () => {
+            const res = await fetch(`/api/user/transactions?year=${currentYear}&limit=1000`)
+            if (!res.ok) return []
+            return res.json()
+        },
+        enabled: !!user?.id,
+    })
+
+    const { data: calculation } = useQuery({
+        queryKey: ['taxCalculation', user?.id],
+        queryFn: async () => {
+            const res = await fetch(`/api/user/tax-calculation?year=${currentYear}`)
+            if (!res.ok) return null
+            return res.json()
+        },
+        enabled: !!user?.id,
+    })
+
+    const handleGenerate = async (type: 'income' | 'tax' | 'expense') => {
+        if (!user) {
+            toast.error("Please login to generate reports")
+            return
+        }
+
+        setGenerating(type)
+        try {
+            const commonData = {
+                title: '',
+                userName: profile?.full_name || user.email || 'User',
+                taxYear: currentYear,
+                transactions,
+            }
+
+            if (type === 'income') {
+                generateIncomeSummaryPDF({ ...commonData, title: 'Income Summary' })
+            } else if (type === 'tax') {
+                if (!calculation) {
+                    toast.error("Please calculate your tax first in the Tax Calculator section")
+                    setGenerating(null)
+                    return
+                }
+                generateTaxComputationPDF({ ...commonData, calculation })
+            } else if (type === 'expense') {
+                generateExpenseAuditPDF({ ...commonData, title: 'Expense Audit' })
+            }
+            toast.success("Report generated successfully")
+        } catch (error) {
+            console.error("Report generation failed", error)
+            toast.error("Failed to generate report")
+        } finally {
+            setGenerating(null)
+        }
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -14,86 +91,81 @@ export default function ReportsPage() {
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Tax Reports</h1>
                     <p className="text-slate-500 dark:text-slate-400">Generate and download your official tax documents.</p>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full text-xs font-medium border border-amber-200 dark:border-amber-800">
-                    <Crown className="w-3 h-3" />
-                    Premium Feature
-                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <Card className="relative overflow-hidden group border-amber-200/50 dark:border-amber-900/30">
+                {/* Income Summary */}
+                <Card className="relative overflow-hidden group border-slate-200 dark:border-slate-800">
                     <CardHeader>
                         <FileText className="w-8 h-8 text-emerald-500 mb-2" />
                         <CardTitle>Income Summary</CardTitle>
                         <CardDescription>Detailed breakdown of your income by source and month.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button variant="outline" className="w-full" disabled>
-                            <Download className="w-4 h-4 mr-2" />
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleGenerate('income')}
+                            disabled={generating !== null}
+                        >
+                            {generating === 'income' ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <Download className="w-4 h-4 mr-2" />
+                            )}
                             Generate PDF
                         </Button>
                     </CardContent>
-                    <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <span className="text-amber-700 dark:text-amber-400 text-xs font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-950 px-2 py-1 rounded border border-amber-300 dark:border-amber-700">Premium Only</span>
-                    </div>
                 </Card>
 
-                <Card className="relative overflow-hidden group border-amber-200/50 dark:border-amber-900/30">
+                {/* Tax Computation */}
+                <Card className="relative overflow-hidden group border-slate-200 dark:border-slate-800">
                     <CardHeader>
                         <FileText className="w-8 h-8 text-blue-500 mb-2" />
                         <CardTitle>Tax Computation</CardTitle>
                         <CardDescription>Official tax liability computation based on current laws.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button variant="outline" className="w-full" disabled>
-                            <Download className="w-4 h-4 mr-2" />
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleGenerate('tax')}
+                            disabled={generating !== null}
+                        >
+                            {generating === 'tax' ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <Download className="w-4 h-4 mr-2" />
+                            )}
                             Generate PDF
                         </Button>
                     </CardContent>
-                    <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <span className="text-amber-700 dark:text-amber-400 text-xs font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-950 px-2 py-1 rounded border border-amber-300 dark:border-amber-700">Premium Only</span>
-                    </div>
                 </Card>
 
-                <Card className="relative overflow-hidden group border-amber-200/50 dark:border-amber-900/30">
+                {/* Expense Audit */}
+                <Card className="relative overflow-hidden group border-slate-200 dark:border-slate-800">
                     <CardHeader>
                         <FileText className="w-8 h-8 text-purple-500 mb-2" />
                         <CardTitle>Expense Audit</CardTitle>
                         <CardDescription>Validated expenses summary for tax deduction claims.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Button variant="outline" className="w-full" disabled>
-                            <Download className="w-4 h-4 mr-2" />
+                        <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => handleGenerate('expense')}
+                            disabled={generating !== null}
+                        >
+                            {generating === 'expense' ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <Download className="w-4 h-4 mr-2" />
+                            )}
                             Generate PDF
                         </Button>
                     </CardContent>
-                    <div className="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[1px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                        <span className="text-amber-700 dark:text-amber-400 text-xs font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-950 px-2 py-1 rounded border border-amber-300 dark:border-amber-700">Premium Only</span>
-                    </div>
                 </Card>
             </div>
-
-            <Card className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white border-none">
-                <CardHeader>
-                    <div className="flex items-center gap-2 mb-2">
-                        <Crown className="w-6 h-6" />
-                        <span className="text-emerald-100 font-bold uppercase tracking-widest text-xs">Recommended</span>
-                    </div>
-                    <CardTitle className="text-2xl">Upgrade to Premium</CardTitle>
-                    <CardDescription className="text-emerald-100 text-lg">
-                        Get unlimited access to expert tax reports and 1-on-1 filing support.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Link href="/subscription">
-                        <Button className="bg-white text-emerald-700 hover:bg-emerald-50 font-bold">
-                            View Pricing Plans
-                        </Button>
-                    </Link>
-                </CardContent>
-            </Card>
         </div>
     )
 }
-
-import Link from 'next/link'

@@ -35,16 +35,7 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
         return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     }
 
-    const getPlanBadge = () => {
-        switch (subscription?.plan) {
-            case 'premium':
-                return <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">Premium</Badge>
-            case 'pro':
-                return <Badge className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white">Pro</Badge>
-            default:
-                return <Badge variant="secondary" className="hidden sm:inline-flex">Free</Badge>
-        }
-    }
+
 
     return (
         <header className={cn(
@@ -74,7 +65,7 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
                         </span>
                     </div>
                 )}
-                {getPlanBadge()}
+
 
                 <ModeToggle />
 
@@ -115,8 +106,7 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
                         </Link>
                         <Link href="/subscription">
                             <DropdownMenuItem>
-                                <Crown className="w-4 h-4 mr-2" />
-                                Subscription
+                                Credits
                             </DropdownMenuItem>
                         </Link>
                         <DropdownMenuSeparator />
