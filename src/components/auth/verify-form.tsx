@@ -69,8 +69,9 @@ export function VerifyForm() {
                     id="email"
                     type="email"
                     placeholder="john@example.com"
+                    autoComplete="email"
                     {...register('email')}
-                    disabled={isLoading || !!initialEmail}
+                    disabled={isLoading}
                 />
                 {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
             </div>

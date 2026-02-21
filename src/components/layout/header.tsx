@@ -17,6 +17,7 @@ import {
 import { Bell, Menu, User, Settings, Crown, Coins } from 'lucide-react'
 import { useAuth } from '@/components/auth-provider'
 import { ModeToggle } from '@/components/mode-toggle'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 interface HeaderProps {
@@ -35,7 +36,13 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
         return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     }
 
+    const [mounted, setMounted] = React.useState(false)
 
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    const firstName = profile?.full_name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0]
 
     return (
         <header className={cn(
@@ -48,7 +55,7 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
                 </Button>
                 <div className="min-w-0 flex-1">
                     <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-900 dark:text-white truncate">
-                        Hello, {profile?.full_name?.split(' ')[0] || user?.user_metadata?.full_name?.split(' ')[0] || 'User'}
+                        Hello{mounted ? (firstName ? `, ${firstName}` : '') : <Skeleton className="h-4 w-24 inline-block ml-2 align-middle" />}
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 hidden lg:block">
                         Manage your taxes efficiently
@@ -79,7 +86,7 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
                         <Button variant="ghost" className="flex items-center gap-2 px-1 h-8">
                             <Avatar className="w-7 h-7 sm:w-8 sm:h-8">
                                 <AvatarFallback className="text-[10px] sm:text-xs bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-400">
-                                    {getInitials(profile?.full_name || user?.user_metadata?.full_name)}
+                                    {mounted ? getInitials(profile?.full_name || user?.user_metadata?.full_name) : <Skeleton className="h-full w-full rounded-full" />}
                                 </AvatarFallback>
                             </Avatar>
                         </Button>

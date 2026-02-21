@@ -88,7 +88,7 @@ export async function signup(formData: FormData) {
   // 6. Return success and redirect path
   return {
     success: true,
-    redirectUrl: `/verify?email=${encodeURIComponent(email)}`,
+    redirectUrl: `/verify`,
   };
 }
 

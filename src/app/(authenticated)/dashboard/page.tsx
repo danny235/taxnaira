@@ -19,6 +19,7 @@ import RecentTransactions from '@/components/dashboard/RecentTransactions'
 import TaxSummaryCard from '@/components/dashboard/tax-summary-card'
 import TaxSavingsPlanner from '@/components/dashboard/TaxSavingsPlanner'
 import Disclaimer from '@/components/common/disclaimer' // Need to check if this exists
+import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton'
 
 export default function Dashboard() {
     const currentYear = new Date().getFullYear()
@@ -107,11 +108,7 @@ export default function Dashboard() {
     }, [transactions])
 
     if (loadingTx) {
-        return (
-            <div className="flex items-center justify-center h-96">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-            </div>
-        )
+        return <DashboardSkeleton />
     }
 
     return (
