@@ -11,6 +11,7 @@ import { Loader2 } from 'lucide-react';
 import { login } from '@/app/(auth)/actions';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 
 const loginSchema = z.object({
     email: z.string().email('Invalid email address'),
@@ -22,6 +23,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginForm() {
     const [isLoading, setIsLoading] = useState(false);
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
         resolver: zodResolver(loginSchema),
     });
@@ -43,6 +45,10 @@ export function LoginForm() {
                     console.error(result.error);
                 }
             } else if (result?.success && result.redirectUrl) {
+                // Seed profile data to avoid fetch on dashboard
+                if (result.profile && result.user) {
+                    queryClient.setQueryData(['profile', result.user.id], result.profile);
+                }
                 toast.success("Welcome back!");
                 router.push(result.redirectUrl);
             }

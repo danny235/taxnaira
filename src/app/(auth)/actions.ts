@@ -152,7 +152,10 @@ export async function login(formData: FormData) {
   const { email, password } = parsed.data;
   const supabase = await createClient();
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -161,6 +164,22 @@ export async function login(formData: FormData) {
     return { error: error.message };
   }
 
-  // 4. Return success and redirect path
-  return { success: true, redirectUrl: "/dashboard" };
+  if (!user) {
+    return { error: "Login failed to return user data." };
+  }
+
+  // 4. Fetch profile to return to client
+  const { data: profile } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+
+  // 5. Return success, redirect path, and profile data
+  return {
+    success: true,
+    redirectUrl: "/dashboard",
+    user,
+    profile,
+  };
 }
