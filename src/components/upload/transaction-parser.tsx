@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 const categoryLabels: Record<string, string> = {
     salary: 'Salary',
@@ -25,9 +26,9 @@ const categoryLabels: Record<string, string> = {
     other_income: 'Other Income',
     rent: 'Rent',
     utilities: 'Utilities',
-    food: 'Food',
+    food_and_travel: 'Food & Travel',
     transportation: 'Transport',
-    business_expenses: 'Business Exp.',
+    business_expense: 'Business Exp.',
     subscriptions: 'Subscription',
     professional_fees: 'Prof. Fees',
     maintenance: 'Maintenance',
@@ -76,6 +77,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     const [accountType, setAccountType] = useState('personal');
     const [importRules, setImportRules] = useState('');
     const [creditBalance, setCreditBalance] = useState<number | null>(null);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         fetchBalance();
@@ -133,7 +135,17 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
             setTransactions(withIds);
             setSelected(Object.fromEntries(withIds.map((tx: any) => [tx.tempId, true])));
             setParsing(false);
-            fetchBalance(); // Refresh balance after deduction
+
+            // Real-time update: inject new balance into React Query cache
+            if (data.newBalance !== undefined) {
+                setCreditBalance(data.newBalance);
+                queryClient.setQueryData(['profile', userId], (oldData: any) => {
+                    if (!oldData) return oldData;
+                    return { ...oldData, credit_balance: data.newBalance };
+                });
+            } else {
+                fetchBalance(); // Fallback to traditional refresh
+            }
 
             toast.success(`AI extracted ${withIds.length} transactions`);
         } catch (e: any) {

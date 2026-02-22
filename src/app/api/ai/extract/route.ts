@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
     let fileContent = "";
 
-    // 2. Extract Text from PDF or Text-based file
+    // 2. Extract Text from PDF, Excel, or Text-based file
     if (
       fileRecord.file_type === "application/pdf" ||
       fileRecord.file_name.toLowerCase().endsWith(".pdf")
@@ -65,11 +65,29 @@ export async function POST(req: NextRequest) {
         const buffer = Buffer.from(await fileBlob.arrayBuffer());
         fileContent = await getFullTextPDF(buffer);
         console.log(
-          `📄 PDF text extracted successfully via pdfreader (${fileContent.length} chars)`,
+          `📄 PDF text extracted successfully (${fileContent.length} chars)`,
         );
       } catch (pdfError) {
         console.error("PDF Parsing Error:", pdfError);
         fileContent = await fileBlob.text(); // Fallback to raw text
+      }
+    } else if (
+      fileRecord.file_name.toLowerCase().endsWith(".xlsx") ||
+      fileRecord.file_name.toLowerCase().endsWith(".xls")
+    ) {
+      try {
+        const { parseExcelStatement } =
+          await import("@/lib/parsers/excel-parser");
+        const buffer = Buffer.from(await fileBlob.arrayBuffer());
+        const rawTransactions = await parseExcelStatement(buffer);
+        // Convert the parsed transactions to a string format for the AI to "refine" or use
+        fileContent = JSON.stringify(rawTransactions, null, 2);
+        console.log(
+          `📊 Excel content parsed successfully (${rawTransactions.length} raw transactions found)`,
+        );
+      } catch (excelError) {
+        console.error("Excel Parsing Error:", excelError);
+        fileContent = await fileBlob.text();
       }
     } else {
       fileContent = await fileBlob.text();
@@ -96,36 +114,38 @@ export async function POST(req: NextRequest) {
     const fileName = fileRecord.file_name.toLowerCase();
     let transactions = [];
 
-    // 4. Perform Direct AI Extraction (OpenAI Preferred)
-    console.log(`🤖 Starting direct OpenAI extraction for: ${fileName}`);
+    // 4. Perform Direct AI Extraction (Kimi Preferred)
+    console.log(`🤖 Starting direct Kimi extraction for: ${fileName}`);
 
     try {
-      const { extractDataFromStatement: extractWithOpenAI } =
-        await import("@/lib/openai");
-      transactions = await extractWithOpenAI(
+      // Kimi handles large text well, so we use text extraction regardless of type
+      const { extractDataFromStatement: extractWithKimi } =
+        await import("@/lib/kimi");
+      transactions = await extractWithKimi(
         fileContent || (await fileBlob.text()),
         fileRecord.file_type,
+        userContext,
       );
+
       console.log(
-        `✨ OpenAI extraction successful: ${transactions.length} transactions found.`,
+        `✨ Kimi extraction successful: ${transactions.length} transactions found.`,
       );
-    } catch (openaiError) {
-      console.error("OpenAI failed, trying Kimi as fallback...", openaiError);
+    } catch (kimiError) {
+      console.error("Kimi failed, trying OpenAI as fallback...", kimiError);
       try {
-        const { extractDataFromStatement: extractWithKimi } =
-          await import("@/lib/kimi");
-        transactions = await extractWithKimi(
+        const { extractDataFromStatement: extractWithOpenAI } =
+          await import("@/lib/openai");
+        transactions = await extractWithOpenAI(
           fileContent || (await fileBlob.text()),
           fileRecord.file_type,
-          userContext,
         );
         console.log(
-          `✨ Kimi extraction successful: ${transactions.length} transactions found.`,
+          `✨ OpenAI extraction successful: ${transactions.length} transactions found.`,
         );
-      } catch (kimiError) {
+      } catch (openaiError) {
         console.error(
-          "Kimi failed, trying Gemini as final fallback...",
-          kimiError,
+          "OpenAI failed, trying Gemini as final fallback...",
+          openaiError,
         );
         try {
           if (fileName.endsWith(".pdf")) {
@@ -155,14 +175,16 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Deduct 1 credit for successful AI extraction
+    let newBalance = profile.credit_balance || 0;
     if (transactions.length > 0) {
+      newBalance = Math.max(0, newBalance - 1);
       await supabase
         .from("users")
-        .update({ credit_balance: (profile.credit_balance || 0) - 1 })
+        .update({ credit_balance: newBalance })
         .eq("id", user.id);
     }
 
-    return NextResponse.json({ transactions });
+    return NextResponse.json({ transactions, newBalance });
   } catch (error: any) {
     console.error("AI Extraction API Error:", error);
 
