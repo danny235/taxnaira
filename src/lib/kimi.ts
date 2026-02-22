@@ -67,10 +67,10 @@ export async function extractDataFromStatement(
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
-    - description: (string - Rewrite this to be highly user-readable and distinct. DO NOT just copy the bank narration. Translate shorthand into clear English (e.g., 'WT TAX' -> 'Withholding Tax Payment'). Use the User Context to make it specific. Each description should be unique and professional, avoiding generic phrases like 'Misc Expense' if the detail allows for more.)
+    - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand, DO NOT add "expert" polish. It must be a 1:1 copy of the narration.)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Categorize based on Nigerian tax logic. Be specific; avoid generic 'expense' or 'miscellaneous' if a better one fits. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
+    - category: (Categorize based on Nigerian tax logic. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
     - reasoning: (string - why you chose this specific category)
 
     CRITICAL: COMPLETENESS
@@ -142,9 +142,9 @@ export async function classifyTransaction(
     Income: 'salary', 'business_revenue', 'freelance_income', 'foreign_income', 'capital_gains', 'crypto_sale', 'other_income'.
     Expenses: 'rent', 'utilities', 'food_and_travel', 'transportation', 'business_expense', 'subscriptions', 'professional_fees', 'maintenance', 'health', 'donations', 'tax_payments', 'bank_charges', 'pension_contributions', 'nhf_contributions', 'insurance', 'transfers', 'crypto_purchase', 'personal_expense', 'miscellaneous'.
 
-    Instructions: Choose the MOST specific category possible (e.g., 'rent' instead of 'business_expense'). Avoid repeating the same broad category for everything unless it truly fits. 
+    Instructions: Choose the MOST specific category possible (e.g., 'rent' instead of 'business_expense'). 
 
-    Rewrite the transaction description to be highly user-readable and distinct. DO NOT just copy the bank narration. Translate shorthand into clear English.
+    Extract the transaction description EXACTLY as it appears in the input. DO NOT rewrite or refine it.
 
     Transaction Description: "${description}"
 

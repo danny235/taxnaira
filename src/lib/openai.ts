@@ -138,7 +138,7 @@ async function processChunk(chunkData: string, fileType: string) {
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format)
-    - description: (string)
+    - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
     - amount: (number, always positive)
     - is_income: (boolean)
     - category: (Use categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal_expense)
