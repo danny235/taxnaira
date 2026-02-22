@@ -142,6 +142,13 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         }
     };
 
+    const getTransactionSignature = (tx: any) => {
+        const date = tx.date ? new Date(tx.date).getTime() : 0;
+        const amount = Number(tx.amount) || 0;
+        const desc = (tx.description || '').toLowerCase().trim();
+        return `${date}-${amount}-${desc}`;
+    };
+
     const parseFile = async () => {
         setParsing(true);
         setError(null);
@@ -179,6 +186,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
             const decoder = new TextDecoder();
             let buffer = "";
             let localTransactionCount = 0;
+            const seenSignatures = new Set<string>();
 
             // Stage 2: Streaming Analysis
             setParsingStatus('analyzing');
@@ -198,17 +206,30 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
                         // Handle chunk of transactions
                         if (data.transactions) {
-                            const newTxs = data.transactions.map((tx: any, i: number) => ({
-                                ...tx,
-                                tempId: localTransactionCount + i,
-                                selected: true,
-                                type: tx.is_income ? 'credit' : 'debit'
-                            }));
+                            const uniqueNewTxs = data.transactions
+                                .map((tx: any) => {
+                                    const sig = getTransactionSignature(tx);
+                                    if (seenSignatures.has(sig)) return null;
+                                    seenSignatures.add(sig);
+                                    return {
+                                        ...tx,
+                                        selected: true,
+                                        type: tx.is_income ? 'credit' : 'debit'
+                                    };
+                                })
+                                .filter(Boolean) as any[];
 
-                            localTransactionCount += newTxs.length;
-                            setTotalPossibleCount(localTransactionCount);
-                            // Add to queue instead of direct state for "trickle" effect
-                            setTrickleQueue(prev => [...prev, ...newTxs]);
+                            if (uniqueNewTxs.length > 0) {
+                                const finalTxs = uniqueNewTxs.map((tx, i) => ({
+                                    ...tx,
+                                    tempId: localTransactionCount + i
+                                }));
+
+                                localTransactionCount += finalTxs.length;
+                                setTotalPossibleCount(localTransactionCount);
+                                // Add to queue instead of direct state for "trickle" effect
+                                setTrickleQueue(prev => [...prev, ...finalTxs]);
+                            }
 
                             if (data.progress) setProgress(data.progress);
                         }
