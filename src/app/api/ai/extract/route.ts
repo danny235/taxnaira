@@ -112,65 +112,100 @@ export async function POST(req: NextRequest) {
     if (importRules) userContext.importRules = importRules;
 
     const fileName = fileRecord.file_name.toLowerCase();
-    let transactions = [];
+    const contentToProcess = fileContent || (await fileBlob.text());
+    let transactions: any[] = [];
 
-    // 4. Perform Direct AI Extraction (Kimi Preferred)
-    console.log(`🤖 Starting direct Kimi extraction for: ${fileName}`);
+    // 4. Perform AI Extraction (with support for Parallel Chunking on large files)
+    const CHUNK_THRESHOLD = 15000; // chars (~100-150 transactions)
+    const CHUNK_SIZE = 12000;
+
+    const chunks = [];
+    if (contentToProcess.length > CHUNK_THRESHOLD) {
+      console.log(
+        `⚡ Large file detected (${contentToProcess.length} chars). Splitting into chunks...`,
+      );
+      // Simple line-aware chunking
+      const lines = contentToProcess.split("\n");
+      let currentChunk = "";
+      for (const line of lines) {
+        if (
+          currentChunk.length + line.length > CHUNK_SIZE &&
+          currentChunk.length > 0
+        ) {
+          chunks.push(currentChunk);
+          currentChunk = "";
+        }
+        currentChunk += line + "\n";
+      }
+      if (currentChunk) chunks.push(currentChunk);
+
+      // Limit parallelism to avoid 429s (2 chunks at a time is a good start)
+      if (chunks.length > 2) {
+        console.warn(
+          `⚠️ Limit reach: ${chunks.length} chunks. Processing first 2 in parallel for safety.`,
+        );
+        while (chunks.length > 2) chunks.pop();
+      }
+    } else {
+      chunks.push(contentToProcess);
+    }
+
+    console.log(
+      `🤖 Starting AI extraction (${chunks.length} parallel tasks)...`,
+    );
 
     try {
-      // Kimi handles large text well, so we use text extraction regardless of type
-      const { extractDataFromStatement: extractWithKimi } =
-        await import("@/lib/kimi");
-      transactions = await extractWithKimi(
-        fileContent || (await fileBlob.text()),
-        fileRecord.file_type,
-        userContext,
-      );
+      // Create parallel extraction tasks
+      const extractionTasks = chunks.map(async (chunk, index) => {
+        try {
+          const { extractDataFromStatement: extractWithKimi } =
+            await import("@/lib/kimi");
+          return await extractWithKimi(
+            chunk,
+            fileRecord.file_type,
+            userContext,
+          );
+        } catch (kimiError) {
+          console.error(
+            `Chunk ${index} Kimi failure, falling back to OpenAI...`,
+            kimiError,
+          );
+          const { extractDataFromStatement: extractWithOpenAI } =
+            await import("@/lib/openai");
+          return await extractWithOpenAI(chunk, fileRecord.file_type);
+        }
+      });
+
+      // Wait for all chunks
+      const results = await Promise.all(extractionTasks);
+      transactions = results.flat();
 
       console.log(
-        `✨ Kimi extraction successful: ${transactions.length} transactions found.`,
+        `✨ Extraction complete: ${transactions.length} total transactions found.`,
       );
-    } catch (kimiError) {
-      console.error("Kimi failed, trying OpenAI as fallback...", kimiError);
+    } catch (error: any) {
+      console.error("All AI strategies/chunks failed:", error);
+      // If we are here, it means even the fallbacks failed for at least one critical chunk
+      // Or Gemini fallback is needed
       try {
-        const { extractDataFromStatement: extractWithOpenAI } =
-          await import("@/lib/openai");
-        transactions = await extractWithOpenAI(
-          fileContent || (await fileBlob.text()),
-          fileRecord.file_type,
-        );
-        console.log(
-          `✨ OpenAI extraction successful: ${transactions.length} transactions found.`,
-        );
-      } catch (openaiError) {
-        console.error(
-          "OpenAI failed, trying Gemini as final fallback...",
-          openaiError,
-        );
-        try {
-          if (fileName.endsWith(".pdf")) {
-            console.log("📄 Using Gemini native PDF buffer extraction...");
-            const { extractDataFromPdfBuffer } = await import("@/lib/gemini");
-            const buffer = Buffer.from(await fileBlob.arrayBuffer());
-            transactions = await extractDataFromPdfBuffer(buffer, userContext);
-          } else {
-            const { extractDataFromStatement: extractWithGemini } =
-              await import("@/lib/gemini");
-            transactions = await extractWithGemini(
-              fileContent || (await fileBlob.text()),
-              fileRecord.file_type,
-              userContext,
-            );
-          }
-          console.log(
-            `✨ Gemini extraction successful: ${transactions.length} transactions found.`,
-          );
-        } catch (geminiError) {
-          console.error("All AI engines failed:", geminiError);
-          throw new Error(
-            "AI extraction failed. Please try again or use a different file.",
+        console.log("💾 Trying Gemini final fallback for the whole file...");
+        if (fileName.endsWith(".pdf")) {
+          const { extractDataFromPdfBuffer } = await import("@/lib/gemini");
+          const buffer = Buffer.from(await fileBlob.arrayBuffer());
+          transactions = await extractDataFromPdfBuffer(buffer, userContext);
+        } else {
+          const { extractDataFromStatement: extractWithGemini } =
+            await import("@/lib/gemini");
+          transactions = await extractWithGemini(
+            contentToProcess,
+            fileRecord.file_type,
+            userContext,
           );
         }
+      } catch (geminiError) {
+        throw new Error(
+          "AI extraction failed on all levels. Please try a smaller file.",
+        );
       }
     }
 
