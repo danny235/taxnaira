@@ -7,7 +7,8 @@ if (!apiKey) {
   console.warn("⚠️ KIMI_API_KEY is not set in environment variables.");
 }
 
-// Kimi uses OpenAI-compatible API
+// Moonshot has two platforms: .cn (China) and .ai (Global).
+// Diagnostics confirmed that this key works only on the global (.ai) platform.
 const kimi = new OpenAI({
   apiKey: apiKey,
   baseURL: "https://api.moonshot.ai/v1",
@@ -36,6 +37,19 @@ const buildUserContextStr = (userContext?: any) => {
   return str;
 };
 
+/**
+ * Helper to clean and parse JSON from AI responses.
+ * Handles markdown blocks and common formatting issues.
+ */
+const cleanJsonResponse = (content: string) => {
+  let cleaned = content.trim();
+  // Remove markdown code blocks if present
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+  }
+  return JSON.parse(cleaned.trim());
+};
+
 export async function extractDataFromStatement(
   fileData: string,
   fileType: string,
@@ -50,13 +64,19 @@ export async function extractDataFromStatement(
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
-    - description: (string)
+    - description: (string - Rewrite this to be highly user-readable and distinct. DO NOT just copy the bank narration. Translate shorthand into clear English (e.g., 'WT TAX' -> 'Withholding Tax Payment'). Use the User Context to make it specific. Each description should be unique and professional, avoiding generic phrases like 'Misc Expense' if the detail allows for more.)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Categorize based on Nigerian tax logic: salary, business revenue, freelance income, foreign income, capital gains, crypto sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal expense)
-    - reasoning: (string - why you chose this category)
+    - category: (Categorize based on Nigerian tax logic. Be specific; avoid generic 'expense' or 'miscellaneous' if a better one fits. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
+    - reasoning: (string - why you chose this specific category)
 
-    Return ONLY the JSON.
+    CRITICAL: COMPLETENESS
+    - Extract EVERY SINGLE TRANSACTION from the document.
+    - DO NOT summarize. DO NOT skip any rows.
+    - If the document has 100 transactions, you must return 100 objects in the array.
+    - Accuracy and completeness are prioritized over brevity.
+
+    Return ONLY the JSON. No markdown wrappers.
 
     Content:
     ${fileData}
@@ -68,20 +88,38 @@ export async function extractDataFromStatement(
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that outputs JSON.",
+          content:
+            "You are a professional Nigerian tax data extractor. You must output ONLY valid JSON. Ensure all strings are properly escaped (especially quotes within descriptions).",
         },
         { role: "user", content: prompt },
       ],
       response_format: { type: "json_object" },
+      max_tokens: 4096, // Ensure plenty of space for many transactions
+      temperature: 0, // Keep it deterministic for better JSON
     });
 
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No content returned from Kimi");
 
-    const result = JSON.parse(content);
-    return result.transactions || [];
-  } catch (error) {
-    console.error("Kimi Extraction Error:", error);
+    try {
+      return cleanJsonResponse(content).transactions || [];
+    } catch (parseError) {
+      console.error("🛑 Kimi JSON Parse Failure!");
+      console.error(
+        "Raw content snippet (last 200 chars):",
+        content.slice(-200),
+      );
+      console.error("Content length:", content.length);
+      throw parseError;
+    }
+  } catch (error: any) {
+    console.error("Kimi Extraction Error Details:", {
+      status: error.status,
+      message: error.message,
+      type: error.type,
+      model: "moonshot-v1-128k",
+      baseUrl: "https://api.moonshot.ai/v1",
+    });
     throw error;
   }
 }
@@ -98,8 +136,12 @@ export async function classifyTransaction(
     ${contextStr}
 
     CATEGORIES & GUIDELINES:
-    Income: 'salary', 'business revenue', 'freelance income', 'foreign income', 'capital gains', 'crypto sale', 'other income'.
-    Expenses: 'rent', 'utilities', 'food', 'transportation', 'business expenses', 'subscriptions', 'professional_fees', 'maintenance', 'health', 'donations', 'tax_payments', 'bank_charges', 'pension contributions', 'nhf contributions', 'insurance', 'transfers', 'crypto purchase', 'personal expense', 'miscellaneous'.
+    Income: 'salary', 'business_revenue', 'freelance_income', 'foreign_income', 'capital_gains', 'crypto_sale', 'other_income'.
+    Expenses: 'rent', 'utilities', 'food_and_travel', 'transportation', 'business_expense', 'subscriptions', 'professional_fees', 'maintenance', 'health', 'donations', 'tax_payments', 'bank_charges', 'pension_contributions', 'nhf_contributions', 'insurance', 'transfers', 'crypto_purchase', 'personal_expense', 'miscellaneous'.
+
+    Instructions: Choose the MOST specific category possible (e.g., 'rent' instead of 'business_expense'). Avoid repeating the same broad category for everything unless it truly fits. 
+
+    Rewrite the transaction description to be highly user-readable and distinct. DO NOT just copy the bank narration. Translate shorthand into clear English.
 
     Transaction Description: "${description}"
 
@@ -107,17 +149,20 @@ export async function classifyTransaction(
     {
       "category": "string",
       "confidence": number,
-      "reasoning": "string"
+      "reasoning": "string",
+      "description": "string" 
     }
+
+    Return ONLY the JSON. No markdown wrappers.
   `;
 
   try {
     const response = await kimi.chat.completions.create({
-      model: "kimi-k2.5",
+      model: "moonshot-v1-8k",
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that outputs JSON.",
+          content: "You are a helpful assistant that outputs only valid JSON.",
         },
         { role: "user", content: prompt },
       ],
@@ -127,9 +172,14 @@ export async function classifyTransaction(
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No content returned from Kimi");
 
-    return JSON.parse(content);
-  } catch (error) {
-    console.error("Kimi Classification Error:", error);
+    return cleanJsonResponse(content);
+  } catch (error: any) {
+    console.error("Kimi Classification Error Details:", {
+      status: error.status,
+      message: error.message,
+      model: "moonshot-v1-8k",
+      baseUrl: "https://api.moonshot.ai/v1",
+    });
     return {
       category: categorizeTransaction(description, false),
       confidence: 0,
