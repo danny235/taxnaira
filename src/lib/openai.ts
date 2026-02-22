@@ -11,31 +11,42 @@ const openai = new OpenAI({
   apiKey: apiKey,
 });
 
+/**
+ * Robust retry wrapper with exponential backoff
+ */
+async function retry<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  delay = 2000,
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (
+      retries > 0 &&
+      (error.status === 429 ||
+        error.status >= 500 ||
+        error.message?.includes("quota"))
+    ) {
+      console.warn(
+        `⚠️ OpenAI error (${error.status}). Retrying in ${delay}ms... (${retries} left)`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return retry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 export async function classifyTransaction(description: string) {
   const prompt = `
     You are a Nigerian tax expert assistant. Your task is to categorize a financial transaction based on its description.
     The categories are:
-    - 'salary': Regular employment income.
-    - 'business_revenue': Income from business operations or sales.
-    - 'freelance_income': Income from freelance work or gig economy.
-    - 'foreign_income': Income received in foreign currency (USD, GBP, etc).
-    - 'capital_gains': Profit from sale of assets.
-    - 'crypto_sale': Profit from cryptocurrency sales.
-    - 'subscriptions': Recurring service payments (AWS, Google Workspace, Netflix, etc).
-    - 'professional_fees': Payments for legal, accounting, or consulting services.
-    - 'maintenance': Repairs, office upkeep, or equipment servicing.
-    - 'health': Business-related health costs.
-    - 'donations': Corporate social responsibility or charity.
-    - 'tax_payments': Direct tax payments (FIRS, LIRS, WHT, VAT).
-    - 'bank_charges': Account maintenance, SMS fees, transfer fees, stamp duties.
-    - 'expense': Any business or deductible expense.
-    - 'personal_expense': Non-deductible personal spending.
-    - 'pension_contributions': Employee contributions to pension.
-    - 'nhf_contributions': National Housing Fund contributions.
+    - 'salary', 'business_revenue', 'freelance_income', 'foreign_income', 'capital_gains', 'crypto_sale', 'subscriptions', 'professional_fees', 'maintenance', 'health', 'donations', 'tax_payments', 'bank_charges', 'expense', 'personal_expense', 'pension_contributions', 'nhf_contributions'
 
     Transaction Description: "${description}"
 
-    Return ONLY a JSON object with the following fields:
+    Return ONLY a JSON object:
     {
       "category": "string",
       "confidence": number,
@@ -44,17 +55,19 @@ export async function classifyTransaction(description: string) {
   `;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that outputs JSON.",
-        },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    const response = await retry(() =>
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that outputs JSON.",
+          },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    );
 
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No content returned from OpenAI");
@@ -74,17 +87,15 @@ export async function extractDataFromStatement(
   fileData: string,
   fileType: string,
 ) {
-  // Rough estimate: 4 characters per token.
-  // TPM Limit is 30,000 for some users.
-  // Let's use 20,000 characters per chunk (~5,000 tokens) to be safe.
-  const CHUNK_SIZE = 20000;
+  // Use a slightly larger chunk size for 4o-mini to reduce requests
+  const CHUNK_SIZE = 30000;
 
   if (fileData.length <= CHUNK_SIZE) {
     return await processChunk(fileData, fileType);
   }
 
   console.log(
-    `📄 Large file detected (${fileData.length} chars). Splitting into chunks...`,
+    `📄 Large file detected (${fileData.length} chars). Splitting into ${Math.ceil(fileData.length / CHUNK_SIZE)} chunks...`,
   );
 
   const chunks: string[] = [];
@@ -99,12 +110,16 @@ export async function extractDataFromStatement(
     try {
       const transactions = await processChunk(chunks[i], fileType);
       allTransactions = [...allTransactions, ...transactions];
+
+      // Small pause between chunks to avoid TPM limits
+      if (chunks.length > 1 && i < chunks.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     } catch (error: any) {
       console.error(`Error processing chunk ${i + 1}:`, error.message);
-      // If we hit a rate limit error even with chunking, we should probably stop and return what we have (or fallback)
       if (error.status === 429) {
         console.warn(
-          "⚠️ Rate limit hit during chunked processing. Returning existing results.",
+          "⚠️ Rate limit hit. Attempting to return partial results.",
         );
         break;
       }
@@ -133,82 +148,27 @@ async function processChunk(chunkData: string, fileType: string) {
   `;
 
   try {
-    console.log("Starting OpenAI request...");
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: "You are a helpful assistant that outputs JSON.",
-        },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    });
+    const response = await retry(() =>
+      openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful assistant that outputs JSON.",
+          },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    );
 
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No content returned from OpenAI");
 
     const result = JSON.parse(content);
-
-    if (result.transactions && Array.isArray(result.transactions)) {
-      return result.transactions;
-    }
-
-    if (Array.isArray(result)) return result;
-
-    return [];
+    return result.transactions || (Array.isArray(result) ? result : []);
   } catch (error: any) {
-    console.error("OpenAI Extraction Error Details:", {
-      message: error.message,
-      status: error.status,
-      code: error.code,
-      type: error.type,
-    });
-
-    // Fallback for demo/testing purposes if AI fails (Quota or Rate Limit)
-    if (
-      (error.status === 429 ||
-        error.code === "insufficient_quota" ||
-        error.message?.includes("quota")) &&
-      process.env.ENABLE_MOCK_FALLBACK === "true"
-    ) {
-      console.warn(
-        "⚠️ OpenAI Quota or Rate Limit exceeded. Returning mock data for demonstration.",
-      );
-      // Only return mock data if we have zero transactions so far
-      return [
-        {
-          date: new Date().toISOString(),
-          description: "FALLBACK: Salary Payment (Mock)",
-          amount: 500000,
-          is_income: true,
-          category: "salary",
-        },
-        {
-          date: new Date().toISOString(),
-          description: "FALLBACK: Grocery Store (Mock)",
-          amount: 25000,
-          is_income: false,
-          category: "food",
-        },
-        {
-          date: new Date().toISOString(),
-          description: "FALLBACK: Uber Ride (Mock)",
-          amount: 4500,
-          is_income: false,
-          category: "transportation",
-        },
-        {
-          date: new Date().toISOString(),
-          description: "FALLBACK: Freelance Project (Mock)",
-          amount: 150000,
-          is_income: true,
-          category: "freelance_income",
-        },
-      ];
-    }
-
+    console.error("OpenAI Extraction Error:", error.message);
     throw error;
   }
 }
