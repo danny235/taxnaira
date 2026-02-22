@@ -68,10 +68,13 @@ export async function extractDataFromStatement(
     Each object must have:
     - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
     - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand, DO NOT add "expert" polish. It must be a 1:1 copy of the narration.)
-    - amount: (number, always positive)
+    - amount: (number - Extract the value EXACTLY as written. Remove commas and currency symbols. Return as a plain number. NEVER round up or down. 100.45 must stay 100.45, not 100.5. Double-check this against the source content for EVERY transaction.)
     - is_income: (boolean)
     - category: (Categorize based on Nigerian tax logic. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
     - reasoning: (string - why you chose this specific category)
+
+    SELF-AUDIT RULE:
+    Before finalizing the JSON, you MUST re-read the input text and verify that every 'amount' and 'date' in your output matches the original document precisely.
 
     CRITICAL: COMPLETENESS
     - Extract EVERY SINGLE TRANSACTION from the document.

@@ -143,10 +143,23 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     };
 
     const getTransactionSignature = (tx: any) => {
-        const date = tx.date ? new Date(tx.date).getTime() : 0;
-        const amount = Number(tx.amount) || 0;
-        const desc = (tx.description || '').toLowerCase().trim();
-        return `${date}-${amount}-${desc}`;
+        // 1. Normalize Date (YYYY-MM-DD)
+        const dateStr = tx.date ? new Date(tx.date).toISOString().split('T')[0] : '0000-00-00';
+
+        // 2. Normalize Amount (handles strings with symbols/commas safely)
+        let amtValue = tx.amount;
+        if (typeof amtValue === 'string') {
+            amtValue = amtValue.replace(/[^0-9.-]/g, '');
+        }
+        const amount = Number(amtValue || 0).toFixed(2);
+
+        // 3. Normalize Description (lowercase, trim, collapse whitespace)
+        const desc = (tx.description || '')
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' ');
+
+        return `${dateStr}|${amount}|${desc}`;
     };
 
     const parseFile = async () => {
@@ -211,8 +224,16 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                     const sig = getTransactionSignature(tx);
                                     if (seenSignatures.has(sig)) return null;
                                     seenSignatures.add(sig);
+
+                                    // Sanitize Amount for display/state
+                                    let amt = tx.amount;
+                                    if (typeof amt === 'string') {
+                                        amt = parseFloat(amt.replace(/[^0-9.-]/g, ''));
+                                    }
+
                                     return {
                                         ...tx,
+                                        amount: isNaN(amt) ? 0 : amt,
                                         selected: true,
                                         type: tx.is_income ? 'credit' : 'debit'
                                     };

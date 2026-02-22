@@ -139,9 +139,12 @@ async function processChunk(chunkData: string, fileType: string) {
     Each object must have:
     - date: (ISO 8601 format)
     - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
-    - amount: (number, always positive)
+    - amount: (number - Extract the value EXACTLY as written. NEVER round. 100.99 must stay 100.99. Return as a clean number without commas or currency symbols. Verified against original line.)
     - is_income: (boolean)
     - category: (Use categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal_expense)
+
+    SELF-AUDIT RULE:
+    Double-check every extracted amount against the source text before returning the JSON. Precision is 100% mandatory.
 
     Content:
     ${chunkData}
