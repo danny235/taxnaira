@@ -165,7 +165,8 @@ async function processChunk(chunkData: string, fileType: string) {
     const content = response.choices[0].message.content;
     if (!content) throw new Error("No content returned from OpenAI");
 
-    const result = JSON.parse(content);
+    const { repairJson } = await import("./utils/json-repair");
+    const result = JSON.parse(repairJson(content));
     return result.transactions || (Array.isArray(result) ? result : []);
   } catch (error: any) {
     console.error("OpenAI Extraction Error:", error.message);

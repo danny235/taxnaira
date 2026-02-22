@@ -9,8 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle, AlertTriangle, FileText, Search, Brain, Zap } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from 'framer-motion';
+import { Progress } from "@/components/ui/progress";
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -74,14 +76,49 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Premium Progress States
+    const [parsingStatus, setParsingStatus] = useState<'idle' | 'reading' | 'extracting' | 'analyzing' | 'completing'>('idle');
+    const [progress, setProgress] = useState(0);
+
+    // Trickle Queue States
+    const [trickleQueue, setTrickleQueue] = useState<Transaction[]>([]);
+    const [totalPossibleCount, setTotalPossibleCount] = useState(0);
+
     const [accountType, setAccountType] = useState('personal');
     const [importRules, setImportRules] = useState('');
     const [creditBalance, setCreditBalance] = useState<number | null>(null);
     const queryClient = useQueryClient();
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         fetchBalance();
     }, []);
+
+    // Effect to handle the "Visual Trickle"
+    useEffect(() => {
+        if (trickleQueue.length === 0) return;
+
+        const timer = setInterval(() => {
+            setTrickleQueue(prev => {
+                if (prev.length === 0) return prev;
+
+                // Pop 1-2 items to reveal
+                const toExtract = prev.slice(0, Math.min(2, prev.length));
+                const remaining = prev.slice(toExtract.length);
+
+                setTransactions(current => [...current, ...toExtract]);
+                setSelected(current => {
+                    const next = { ...current };
+                    toExtract.forEach(tx => { next[tx.tempId] = true; });
+                    return next;
+                });
+
+                return remaining;
+            });
+        }, 150);
+
+        return () => clearInterval(timer);
+    }, [trickleQueue.length]);
 
     const fetchBalance = async () => {
         try {
@@ -95,65 +132,123 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
 
 
+    const stopExtraction = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+            setParsing(false);
+            setParsingStatus('idle');
+            toast.info("Extraction stopped by user");
+        }
+    };
+
     const parseFile = async () => {
         setParsing(true);
         setError(null);
+        setTransactions([]); // Clear existing
+        setSelected({});
+        setParsingStatus('reading');
+        setProgress(10);
+
+        // Initialize AbortController
+        abortControllerRef.current = new AbortController();
 
         try {
+            // Stage 1: File Preparation
+            await new Promise(r => setTimeout(r, 800)); // Aesthetic beat
+            setParsingStatus('extracting');
+            setProgress(30);
+
             const response = await fetch('/api/ai/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileId, fileUrl, accountType, importRules })
+                body: JSON.stringify({ fileId, fileUrl, accountType, importRules }),
+                signal: abortControllerRef.current.signal
             });
 
             if (response.status === 402) {
                 setError("Insufficient credits. Please top up your account to use AI extraction.");
                 setParsing(false);
+                setParsingStatus('idle');
                 return;
             }
 
-            const data = await response.json();
+            if (!response.body) throw new Error("Failed to initialize stream reader");
 
-            if (data.error) throw new Error(data.error);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let localTransactionCount = 0;
 
-            const parsed = data.transactions || [];
+            // Stage 2: Streaming Analysis
+            setParsingStatus('analyzing');
 
-            if (parsed.length === 0) {
-                setError("No transactions could be extracted from this file.");
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || ""; // Keep incomplete line
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+
+                        // Handle chunk of transactions
+                        if (data.transactions) {
+                            const newTxs = data.transactions.map((tx: any, i: number) => ({
+                                ...tx,
+                                tempId: localTransactionCount + i,
+                                selected: true,
+                                type: tx.is_income ? 'credit' : 'debit'
+                            }));
+
+                            localTransactionCount += newTxs.length;
+                            setTotalPossibleCount(localTransactionCount);
+                            // Add to queue instead of direct state for "trickle" effect
+                            setTrickleQueue(prev => [...prev, ...newTxs]);
+
+                            if (data.progress) setProgress(data.progress);
+                        }
+
+                        // Handle completion
+                        if (data.status === 'complete') {
+                            setParsingStatus('completing');
+                            setProgress(100);
+
+                            if (data.newBalance !== undefined) {
+                                setCreditBalance(data.newBalance);
+                                queryClient.setQueryData(['profile', userId], (oldData: any) => {
+                                    if (!oldData) return oldData;
+                                    return { ...oldData, credit_balance: data.newBalance };
+                                });
+                            }
+                        }
+
+                        if (data.error) throw new Error(data.error);
+
+                    } catch (lineError) {
+                        console.error("Failed to parse stream line:", lineError);
+                    }
+                }
+            }
+
+            setTimeout(() => {
                 setParsing(false);
-                return;
-            }
+                setParsingStatus('idle');
+            }, 800);
 
-            // Map AI response to component state
-            const withIds = parsed.map((tx: any, i: number) => ({
-                ...tx,
-                tempId: i,
-                selected: true,
-                type: tx.is_income ? 'credit' : 'debit'
-            }));
-
-            setTransactions(withIds);
-            setSelected(Object.fromEntries(withIds.map((tx: any) => [tx.tempId, true])));
-            setParsing(false);
-
-            // Real-time update: inject new balance into React Query cache
-            if (data.newBalance !== undefined) {
-                setCreditBalance(data.newBalance);
-                queryClient.setQueryData(['profile', userId], (oldData: any) => {
-                    if (!oldData) return oldData;
-                    return { ...oldData, credit_balance: data.newBalance };
-                });
-            } else {
-                fetchBalance(); // Fallback to traditional refresh
-            }
-
-            toast.success(`AI extracted ${withIds.length} transactions`);
+            toast.success(`AI discovered ${localTransactionCount} transactions in real-time`);
         } catch (e: any) {
+            if (e.name === 'AbortError') return; // User stopped it
             console.error("AI Extraction Error:", e);
             const errorMessage = e.message || "Failed to parse file.";
             setError(errorMessage);
             toast.error(errorMessage);
             setParsing(false);
+            setParsingStatus('idle');
         }
     };
 
@@ -284,6 +379,80 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             </div>
                         </div>
 
+                        <AnimatePresence>
+                            {parsing && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    className="p-6 rounded-xl border border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 backdrop-blur-sm shadow-inner space-y-4"
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                                {parsingStatus === 'reading' && <FileText className="w-5 h-5 animate-pulse" />}
+                                                {parsingStatus === 'extracting' && <Search className="w-5 h-5 animate-spin" />}
+                                                {parsingStatus === 'analyzing' && <Brain className="w-5 h-5 animate-bounce" />}
+                                                {parsingStatus === 'completing' && <CheckCircle className="w-5 h-5 text-emerald-500" />}
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+                                                    {parsingStatus === 'reading' && 'Reading Document...'}
+                                                    {parsingStatus === 'extracting' && 'Extracting Raw Text...'}
+                                                    {parsingStatus === 'analyzing' && 'AI Analysis Engine Running...'}
+                                                    {parsingStatus === 'completing' && 'Finalizing Transactions...'}
+                                                </h4>
+                                                <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80">
+                                                    {parsingStatus === 'analyzing'
+                                                        ? `Discovered ${transactions.length} items (${trickleQueue.length} in queue)...`
+                                                        : 'Please wait while we process your file'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{progress}%</span>
+                                        </div>
+                                    </div>
+
+                                    <Progress value={progress} className="h-2 bg-emerald-100 dark:bg-emerald-900/30" />
+
+                                    <div className="flex justify-between gap-1 mt-4">
+                                        {[
+                                            { id: 'reading', icon: FileText, label: 'Read' },
+                                            { id: 'extracting', icon: Search, label: 'Extract' },
+                                            { id: 'analyzing', icon: Brain, label: 'Analyze' },
+                                            { id: 'completing', icon: Zap, label: 'Finalize' }
+                                        ].map((step, idx) => (
+                                            <div key={step.id} className="flex-1 flex flex-col items-center gap-1 group">
+                                                <div className={cn(
+                                                    "w-1.5 h-1.5 rounded-full transition-all duration-300",
+                                                    progress >= (idx + 1) * 25 ? "bg-emerald-500 scale-125 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-slate-200 dark:bg-slate-700"
+                                                )} />
+                                                <span className={cn(
+                                                    "text-[9px] font-bold uppercase tracking-wider transition-colors",
+                                                    progress >= (idx + 1) * 25 ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"
+                                                )}>
+                                                    {step.label}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="pt-2 flex justify-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={stopExtraction}
+                                            className="text-emerald-600/50 hover:text-red-500 hover:bg-red-50/50 dark:hover:bg-red-900/20 text-[10px] h-7 uppercase tracking-tight font-bold"
+                                        >
+                                            <AlertTriangle className="w-3 h-3 mr-1.5" />
+                                            Stop Extraction
+                                        </Button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
                         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="text-slate-500">Available Credits:</span>
@@ -354,34 +523,45 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {transactions.map((tx) => (
-                                        <TableRow key={tx.tempId} className={!selected[tx.tempId] ? 'opacity-50' : ''}>
-                                            <TableCell>
-                                                <Checkbox
-                                                    checked={selected[tx.tempId] || false}
-                                                    onCheckedChange={() => toggleSelect(tx.tempId)}
-                                                />
-                                            </TableCell>
-                                            <TableCell className="text-sm whitespace-nowrap">
-                                                {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-sm font-medium min-w-[150px] max-w-[200px] truncate">
-                                                {tx.description}
-                                            </TableCell>
-                                            <TableCell className={cn(tx.is_income ? 'text-emerald-600' : 'text-red-600', "whitespace-nowrap")}>
-                                                {tx.is_income ? '+' : '-'}₦{tx.amount?.toLocaleString()}
-                                            </TableCell>
-                                            <TableCell>
-                                                {tx.category ? (
-                                                    <Badge variant="outline" className="text-[10px] h-5 py-0">
-                                                        {categoryLabels[tx.category] || tx.category}
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-slate-400 text-[10px]">Pending</span>
+                                    <AnimatePresence initial={false}>
+                                        {transactions.map((tx) => (
+                                            <motion.tr
+                                                key={tx.tempId}
+                                                layout
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                className={cn(
+                                                    !selected[tx.tempId] ? 'opacity-50' : '',
+                                                    "transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50"
                                                 )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                            >
+                                                <TableCell>
+                                                    <Checkbox
+                                                        checked={selected[tx.tempId] || false}
+                                                        onCheckedChange={() => toggleSelect(tx.tempId)}
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-sm whitespace-nowrap">
+                                                    {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-sm font-medium min-w-[150px] max-w-[200px] truncate">
+                                                    {tx.description}
+                                                </TableCell>
+                                                <TableCell className={cn(tx.is_income ? 'text-emerald-600' : 'text-red-600', "whitespace-nowrap")}>
+                                                    {tx.is_income ? '+' : '-'}₦{tx.amount?.toLocaleString()}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {tx.category ? (
+                                                        <Badge variant="outline" className="text-[10px] h-5 py-0">
+                                                            {categoryLabels[tx.category] || tx.category}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-slate-400 text-[10px]">Pending</span>
+                                                    )}
+                                                </TableCell>
+                                            </motion.tr>
+                                        ))}
+                                    </AnimatePresence>
                                 </TableBody>
                             </Table>
                         </div>

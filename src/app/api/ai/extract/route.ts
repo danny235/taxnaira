@@ -116,8 +116,8 @@ export async function POST(req: NextRequest) {
     let transactions: any[] = [];
 
     // 4. Perform AI Extraction (with support for Parallel Chunking on large files)
-    const CHUNK_THRESHOLD = 15000; // chars (~100-150 transactions)
-    const CHUNK_SIZE = 12000;
+    const CHUNK_THRESHOLD = 12000; // chars (~100-150 transactions)
+    const CHUNK_SIZE = 8000;
 
     const chunks = [];
     if (contentToProcess.length > CHUNK_THRESHOLD) {
@@ -154,72 +154,115 @@ export async function POST(req: NextRequest) {
       `🤖 Starting AI extraction (${chunks.length} parallel tasks)...`,
     );
 
-    try {
-      // Create parallel extraction tasks
-      const extractionTasks = chunks.map(async (chunk, index) => {
+    const encoder = new TextEncoder();
+    let creditDeducted = false;
+    let finalNewBalance = profile.credit_balance || 0;
+
+    const stream = new ReadableStream({
+      async start(controller) {
         try {
-          const { extractDataFromStatement: extractWithKimi } =
-            await import("@/lib/kimi");
-          return await extractWithKimi(
-            chunk,
-            fileRecord.file_type,
-            userContext,
+          // Create parallel extraction tasks
+          const extractionPromises = chunks.map(async (chunk, index) => {
+            try {
+              const { extractDataFromStatement: extractWithKimi } =
+                await import("@/lib/kimi");
+              const chunkTransactions = await extractWithKimi(
+                chunk,
+                fileRecord.file_type,
+                userContext,
+              );
+
+              if (chunkTransactions.length > 0) {
+                // Deduct credit only once upon first success
+                if (!creditDeducted) {
+                  creditDeducted = true;
+                  finalNewBalance = Math.max(0, finalNewBalance - 1);
+                  await supabase
+                    .from("users")
+                    .update({ credit_balance: finalNewBalance })
+                    .eq("id", user.id);
+                }
+
+                // Stream the chunk results immediately
+                const payload = JSON.stringify({
+                  transactions: chunkTransactions,
+                  chunkIndex: index,
+                  progress: 40 + Math.round(((index + 1) / chunks.length) * 50),
+                });
+                controller.enqueue(encoder.encode(payload + "\n"));
+              }
+            } catch (kimiError) {
+              console.error(
+                `Chunk ${index} Kimi failure, falling back to OpenAI...`,
+                kimiError,
+              );
+              try {
+                const { extractDataFromStatement: extractWithOpenAI } =
+                  await import("@/lib/openai");
+                const chunkTransactions = await extractWithOpenAI(
+                  chunk,
+                  fileRecord.file_type,
+                );
+
+                if (chunkTransactions.length > 0) {
+                  if (!creditDeducted) {
+                    creditDeducted = true;
+                    finalNewBalance = Math.max(0, finalNewBalance - 1);
+                    await supabase
+                      .from("users")
+                      .update({ credit_balance: finalNewBalance })
+                      .eq("id", user.id);
+                  }
+                  const payload = JSON.stringify({
+                    transactions: chunkTransactions,
+                    chunkIndex: index,
+                    progress:
+                      40 + Math.round(((index + 1) / chunks.length) * 50),
+                  });
+                  controller.enqueue(encoder.encode(payload + "\n"));
+                }
+              } catch (openAiError) {
+                console.error(
+                  `Chunk ${index} OpenAI fallback failed:`,
+                  openAiError,
+                );
+              }
+            }
+          });
+
+          // Wait for all chunks to finish
+          await Promise.all(extractionPromises);
+
+          // Final message with updated balance
+          controller.enqueue(
+            encoder.encode(
+              JSON.stringify({
+                status: "complete",
+                newBalance: finalNewBalance,
+                progress: 100,
+              }) + "\n",
+            ),
           );
-        } catch (kimiError) {
-          console.error(
-            `Chunk ${index} Kimi failure, falling back to OpenAI...`,
-            kimiError,
+        } catch (error) {
+          console.error("Streaming Error:", error);
+          controller.enqueue(
+            encoder.encode(
+              JSON.stringify({ error: "Streaming failed" }) + "\n",
+            ),
           );
-          const { extractDataFromStatement: extractWithOpenAI } =
-            await import("@/lib/openai");
-          return await extractWithOpenAI(chunk, fileRecord.file_type);
+        } finally {
+          controller.close();
         }
-      });
+      },
+    });
 
-      // Wait for all chunks
-      const results = await Promise.all(extractionTasks);
-      transactions = results.flat();
-
-      console.log(
-        `✨ Extraction complete: ${transactions.length} total transactions found.`,
-      );
-    } catch (error: any) {
-      console.error("All AI strategies/chunks failed:", error);
-      // If we are here, it means even the fallbacks failed for at least one critical chunk
-      // Or Gemini fallback is needed
-      try {
-        console.log("💾 Trying Gemini final fallback for the whole file...");
-        if (fileName.endsWith(".pdf")) {
-          const { extractDataFromPdfBuffer } = await import("@/lib/gemini");
-          const buffer = Buffer.from(await fileBlob.arrayBuffer());
-          transactions = await extractDataFromPdfBuffer(buffer, userContext);
-        } else {
-          const { extractDataFromStatement: extractWithGemini } =
-            await import("@/lib/gemini");
-          transactions = await extractWithGemini(
-            contentToProcess,
-            fileRecord.file_type,
-            userContext,
-          );
-        }
-      } catch (geminiError) {
-        throw new Error(
-          "AI extraction failed on all levels. Please try a smaller file.",
-        );
-      }
-    }
-
-    // 5. Deduct 1 credit for successful AI extraction
-    let newBalance = profile.credit_balance || 0;
-    if (transactions.length > 0) {
-      newBalance = Math.max(0, newBalance - 1);
-      await supabase
-        .from("users")
-        .update({ credit_balance: newBalance })
-        .eq("id", user.id);
-    }
-
-    return NextResponse.json({ transactions, newBalance });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "application/x-ndjson",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
   } catch (error: any) {
     console.error("AI Extraction API Error:", error);
 

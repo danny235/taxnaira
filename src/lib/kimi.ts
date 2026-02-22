@@ -37,17 +37,20 @@ const buildUserContextStr = (userContext?: any) => {
   return str;
 };
 
+import { repairJson } from "./utils/json-repair";
+
 /**
  * Helper to clean and parse JSON from AI responses.
  * Handles markdown blocks and common formatting issues.
  */
 const cleanJsonResponse = (content: string) => {
-  let cleaned = content.trim();
-  // Remove markdown code blocks if present
-  if (cleaned.startsWith("```")) {
-    cleaned = cleaned.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+  try {
+    const repaired = repairJson(content);
+    return JSON.parse(repaired);
+  } catch (e) {
+    console.error("Failed to parse JSON even after repair:", e);
+    return { transactions: [] };
   }
-  return JSON.parse(cleaned.trim());
 };
 
 export async function extractDataFromStatement(
