@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Filter, Download, Loader2 } from 'lucide-react';
 import TransactionTable, { categories } from '@/components/transactions/transaction-table';
+import TransactionAssistant from '@/components/transactions/transaction-assistant';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,7 @@ export default function TransactionsPage() {
     const [saving, setSaving] = useState(false);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [creditBalance, setCreditBalance] = useState<number | null>(null);
 
     const currentYear = new Date().getFullYear();
 
@@ -35,6 +37,7 @@ export default function TransactionsPage() {
         if (!authLoading) {
             if (user) {
                 fetchTransactions();
+                fetchCredits();
             } else {
                 setLoading(false);
             }
@@ -55,6 +58,18 @@ export default function TransactionsPage() {
             toast.error(error.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchCredits = async () => {
+        try {
+            const response = await fetch('/api/user/profile');
+            const data = await response.json();
+            if (response.ok) {
+                setCreditBalance(data.credit_balance ?? 0);
+            }
+        } catch {
+            // Silently handle credit fetch errors
         }
     };
 
@@ -86,7 +101,7 @@ export default function TransactionsPage() {
             description: newTx.description,
             amount: Number(newTx.amount),
             currency: newTx.currency,
-            naira_value: Number(newTx.amount), // Simplified currency conversion assumption
+            naira_value: Number(newTx.amount),
             category: newTx.category,
             is_income: cat?.isIncome || false,
             manually_categorized: true,
@@ -130,7 +145,7 @@ export default function TransactionsPage() {
         const headers = ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Type'];
         const rows = filtered.map(tx => [
             tx.date,
-            `"${tx.description}"`, // Escape quotes
+            `"${tx.description}"`,
             tx.naira_value || tx.amount,
             tx.currency || 'NGN',
             tx.category,
@@ -271,6 +286,14 @@ export default function TransactionsPage() {
             ) : (
                 <TransactionTable transactions={filtered} onUpdate={fetchTransactions} />
             )}
+
+            {/* AI Transaction Assistant */}
+            <TransactionAssistant
+                transactions={transactions}
+                onUpdate={fetchTransactions}
+                creditBalance={creditBalance}
+                onCreditUpdate={setCreditBalance}
+            />
         </div>
     );
 }
