@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Sparkles, CheckCircle, AlertTriangle, FileText, Search, Brain, Zap } from 'lucide-react';
+import { Loader2, Sparkles, CheckCircle, AlertTriangle, FileText, Search, Brain, Zap, Info } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Progress } from "@/components/ui/progress";
@@ -83,6 +83,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     // Trickle Queue States
     const [trickleQueue, setTrickleQueue] = useState<Transaction[]>([]);
     const [totalPossibleCount, setTotalPossibleCount] = useState(0);
+
+    // Batch Extraction States
+    const [batchState, setBatchState] = useState<{ hasMore: boolean; nextBatchIndex: number; totalChunks: number } | null>(null);
+    const seenSignaturesRef = useRef<Set<string>>(new Set());
+    const localTransactionCountRef = useRef(0);
 
     const [accountType, setAccountType] = useState('personal');
     const [importRules, setImportRules] = useState('');
@@ -162,11 +167,19 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         return `${dateStr}|${amount}|${desc}`;
     };
 
-    const parseFile = async () => {
+    const parseFile = async (batchIndex: number = 0) => {
         setParsing(true);
         setError(null);
-        setTransactions([]); // Clear existing
-        setSelected({});
+        setBatchState(null);
+
+        // Only clear state on first batch
+        if (batchIndex === 0) {
+            setTransactions([]);
+            setSelected({});
+            seenSignaturesRef.current = new Set();
+            localTransactionCountRef.current = 0;
+        }
+
         setParsingStatus('reading');
         setProgress(10);
 
@@ -175,14 +188,14 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
         try {
             // Stage 1: File Preparation
-            await new Promise(r => setTimeout(r, 800)); // Aesthetic beat
+            await new Promise(r => setTimeout(r, 500));
             setParsingStatus('extracting');
-            setProgress(30);
+            setProgress(20);
 
             const response = await fetch('/api/ai/extract', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileId, fileUrl, accountType, importRules }),
+                body: JSON.stringify({ fileId, fileUrl, accountType, importRules, batchIndex }),
                 signal: abortControllerRef.current.signal
             });
 
@@ -198,8 +211,6 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
-            let localTransactionCount = 0;
-            const seenSignatures = new Set<string>();
 
             // Stage 2: Streaming Analysis
             setParsingStatus('analyzing');
@@ -222,8 +233,8 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             const uniqueNewTxs = data.transactions
                                 .map((tx: any) => {
                                     const sig = getTransactionSignature(tx);
-                                    if (seenSignatures.has(sig)) return null;
-                                    seenSignatures.add(sig);
+                                    if (seenSignaturesRef.current.has(sig)) return null;
+                                    seenSignaturesRef.current.add(sig);
 
                                     // Sanitize Amount for display/state
                                     let amt = tx.amount;
@@ -243,11 +254,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             if (uniqueNewTxs.length > 0) {
                                 const finalTxs = uniqueNewTxs.map((tx, i) => ({
                                     ...tx,
-                                    tempId: localTransactionCount + i
+                                    tempId: localTransactionCountRef.current + i
                                 }));
 
-                                localTransactionCount += finalTxs.length;
-                                setTotalPossibleCount(localTransactionCount);
+                                localTransactionCountRef.current += finalTxs.length;
+                                setTotalPossibleCount(localTransactionCountRef.current);
                                 // Add to queue instead of direct state for "trickle" effect
                                 setTrickleQueue(prev => [...prev, ...finalTxs]);
                             }
@@ -258,7 +269,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                         // Handle completion
                         if (data.status === 'complete') {
                             setParsingStatus('completing');
-                            setProgress(100);
+                            setProgress(data.progress || 100);
 
                             if (data.newBalance !== undefined) {
                                 setCreditBalance(data.newBalance);
@@ -266,6 +277,17 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                     if (!oldData) return oldData;
                                     return { ...oldData, credit_balance: data.newBalance };
                                 });
+                            }
+
+                            // Store batch info for Continue button
+                            if (data.hasMore) {
+                                setBatchState({
+                                    hasMore: true,
+                                    nextBatchIndex: data.nextBatchIndex,
+                                    totalChunks: data.totalChunks,
+                                });
+                            } else {
+                                setBatchState(null);
                             }
                         }
 
@@ -282,7 +304,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 setParsingStatus('idle');
             }, 800);
 
-            toast.success(`AI discovered ${localTransactionCount} transactions in real-time`);
+            if (batchState?.hasMore) {
+                toast.success(`Batch complete! Found ${localTransactionCountRef.current} transactions so far. More remaining.`);
+            } else {
+                toast.success(`AI discovered ${localTransactionCountRef.current} transactions in real-time`);
+            }
         } catch (e: any) {
             if (e.name === 'AbortError') return; // User stopped it
             console.error("AI Extraction Error:", e);
@@ -379,6 +405,12 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
                 {transactions.length === 0 ? (
                     <div className="py-6 space-y-6">
+                        <div className="p-3.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 flex items-center gap-3">
+                            <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                            <p className="text-sm text-amber-800 dark:text-amber-300">
+                                <span className="font-bold">Pro tip:</span> Upload monthly statements instead of full-year exports for significantly faster AI processing.
+                            </p>
+                        </div>
                         <div className="space-y-4">
                             <div>
                                 <h3 className="text-sm font-medium mb-3">Account Type</h3>
@@ -511,7 +543,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                 )}
                             </div>
                             <Button
-                                onClick={parseFile}
+                                onClick={() => parseFile(0)}
                                 disabled={parsing || (creditBalance !== null && creditBalance < 1)}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
                             >
@@ -629,6 +661,50 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                         )}
                     </>
                 )}
+                {/* Continue Processing Banner — always visible when more batches remain */}
+                <AnimatePresence>
+                    {batchState?.hasMore && !parsing && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="mt-4 p-5 rounded-xl border-2 border-dashed border-emerald-300 dark:border-emerald-700 bg-emerald-50/80 dark:bg-emerald-900/20 backdrop-blur-sm"
+                        >
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-800/50 flex items-center justify-center shrink-0">
+                                        <Zap className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                                            Batch {batchState.nextBatchIndex} of {batchState.totalChunks} ready
+                                        </h4>
+                                        <p className="text-xs text-emerald-600/70 dark:text-emerald-400/70">
+                                            Found {transactions.length} transactions so far. More data remaining in your document.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setBatchState(null)}
+                                        className="text-xs text-slate-400 hover:text-slate-600"
+                                    >
+                                        Stop here
+                                    </Button>
+                                    <Button
+                                        onClick={() => parseFile(batchState.nextBatchIndex)}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex-1 sm:flex-none"
+                                    >
+                                        Continue →
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
             </CardContent>
         </Card>
     );

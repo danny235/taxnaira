@@ -150,35 +150,55 @@ export async function extractDataFromStatement(
   fileType: string,
   userContext?: any,
 ) {
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
   const contextStr = buildUserContextStr(userContext);
 
   const prompt = `
     Analyze this ${fileType} bank statement or financial document content for a Nigerian user.
     ${contextStr}
 
-    Extract every transaction and return them as a JSON array of objects.
+    Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
-    - description: (string)
-    - amount: (number, always positive)
+    - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
+    - amount: (number - Extract the value EXACTLY as written. Remove commas and currency symbols. Return as a plain number. NEVER round up or down. Double-check this against the source content for EVERY transaction.)
     - is_income: (boolean)
-    - category: (Categorize based on Nigerian tax logic: salary, business revenue, freelance income, foreign income, capital gains, crypto sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal expense)
-    - reasoning: (string - why you chose this category)
+    - category: (Categorize based on Nigerian tax logic. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
+    - reasoning: (string - why you chose this specific category)
+
+    SELF-AUDIT RULE:
+    Before finalizing the JSON, re-read the input text and verify that every 'amount' and 'date' matches the original document precisely.
+
+    CRITICAL: COMPLETENESS
+    - Extract EVERY SINGLE TRANSACTION from the document.
+    - DO NOT summarize. DO NOT skip any rows.
+
+    Return ONLY the JSON. No markdown wrappers.
 
     Content:
     ${fileData}
   `;
 
   try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: 16384,
+        responseMimeType: "application/json",
+      },
+    });
+
     const result = await retry(() => model.generateContent(prompt));
     const text = result.response.text();
-    const jsonString = text.replace(/```json|```/gi, "").trim();
-    return JSON.parse(jsonString);
+
+    if (!text) throw new Error("No content returned from Gemini");
+
+    const { repairJson } = await import("./utils/json-repair");
+    const parsed = JSON.parse(repairJson(text));
+    return parsed.transactions || (Array.isArray(parsed) ? parsed : []);
   } catch (error) {
     console.error("Gemini Extraction Error:", error);
-    throw error; // Rethrow to let the API know it failed
+    throw error;
   }
 }
 export async function extractDataFromPdfBuffer(

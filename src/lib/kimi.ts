@@ -100,7 +100,7 @@ export async function extractDataFromStatement(
         { role: "user", content: prompt },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 4096, // Ensure plenty of space for many transactions
+      max_tokens: 16384, // Ample space even for chunks with 50+ transactions
       temperature: 0, // Keep it deterministic for better JSON
     });
 

@@ -13,7 +13,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { fileId, fileUrl, accountType, importRules } = await req.json();
+    const {
+      fileId,
+      fileUrl,
+      accountType,
+      importRules,
+      batchIndex = 0,
+    } = await req.json();
 
     if (!fileId || !fileUrl) {
       return NextResponse.json(
@@ -36,71 +42,85 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Download file content from Supabase
-    // Standardize path: if it's a full URL, strip the prefix to get the relative storage path
-    let relativePath = fileRecord.file_url;
-    if (relativePath.includes("public/tax_documents/")) {
-      relativePath = relativePath.split("public/tax_documents/").pop()!;
-    }
-
-    const { data: fileBlob, error: downloadError } = await supabase.storage
-      .from("tax_documents")
-      .download(relativePath);
-
-    if (downloadError) {
-      console.error("Download Error:", downloadError);
-      throw downloadError;
-    }
-
+    // 2. Get file content — use cached parsed text if available (batch > 0)
     let fileContent = "";
 
-    // 2. Extract Text from PDF, Excel, or Text-based file
-    if (
-      fileRecord.file_type === "application/pdf" ||
-      fileRecord.file_name.toLowerCase().endsWith(".pdf")
-    ) {
-      try {
-        const { getFullTextPDF } =
-          await import("@/lib/parsers/positional-parser");
-        const buffer = Buffer.from(await fileBlob.arrayBuffer());
-        fileContent = await getFullTextPDF(buffer);
-        console.log(
-          `📄 PDF text extracted successfully (${fileContent.length} chars)`,
-        );
-      } catch (pdfError) {
-        console.error("PDF Parsing Error:", pdfError);
-        fileContent = await fileBlob.text(); // Fallback to raw text
+    if (batchIndex > 0 && fileRecord.parsed_content) {
+      // Fast path: use cached text from first batch
+      console.log(`⚡ Using cached parsed content for batch ${batchIndex}`);
+      fileContent = fileRecord.parsed_content;
+    } else {
+      // First batch: download + parse the file
+      let relativePath = fileRecord.file_url;
+      if (relativePath.includes("public/tax_documents/")) {
+        relativePath = relativePath.split("public/tax_documents/").pop()!;
       }
-    } else if (
-      fileRecord.file_name.toLowerCase().endsWith(".xlsx") ||
-      fileRecord.file_name.toLowerCase().endsWith(".xls")
-    ) {
-      try {
-        const { parseExcelStatement } =
-          await import("@/lib/parsers/excel-parser");
-        const buffer = Buffer.from(await fileBlob.arrayBuffer());
-        const rawTransactions = await parseExcelStatement(buffer);
-        // Convert the parsed transactions to a string format for the AI to "refine" or use
-        fileContent = JSON.stringify(rawTransactions, null, 2);
-        console.log(
-          `📊 Excel content parsed successfully (${rawTransactions.length} raw transactions found)`,
-        );
-      } catch (excelError) {
-        console.error("Excel Parsing Error:", excelError);
+
+      const { data: fileBlob, error: downloadError } = await supabase.storage
+        .from("tax_documents")
+        .download(relativePath);
+
+      if (downloadError) {
+        console.error("Download Error:", downloadError);
+        throw downloadError;
+      }
+
+      // Extract Text from PDF, Excel, or Text-based file
+      if (
+        fileRecord.file_type === "application/pdf" ||
+        fileRecord.file_name.toLowerCase().endsWith(".pdf")
+      ) {
+        try {
+          const { getFullTextPDF } =
+            await import("@/lib/parsers/positional-parser");
+          const buffer = Buffer.from(await fileBlob.arrayBuffer());
+          fileContent = await getFullTextPDF(buffer);
+          console.log(
+            `📄 PDF text extracted successfully (${fileContent.length} chars)`,
+          );
+        } catch (pdfError) {
+          console.error("PDF Parsing Error:", pdfError);
+          fileContent = await fileBlob.text();
+        }
+      } else if (
+        fileRecord.file_name.toLowerCase().endsWith(".xlsx") ||
+        fileRecord.file_name.toLowerCase().endsWith(".xls")
+      ) {
+        try {
+          const { parseExcelStatement } =
+            await import("@/lib/parsers/excel-parser");
+          const buffer = Buffer.from(await fileBlob.arrayBuffer());
+          const rawTransactions = await parseExcelStatement(buffer);
+          fileContent = JSON.stringify(rawTransactions, null, 2);
+          console.log(
+            `📊 Excel content parsed successfully (${rawTransactions.length} raw transactions found)`,
+          );
+        } catch (excelError) {
+          console.error("Excel Parsing Error:", excelError);
+          fileContent = await fileBlob.text();
+        }
+      } else {
         fileContent = await fileBlob.text();
       }
-    } else {
-      fileContent = await fileBlob.text();
+
+      // Cache the parsed content for future batches
+      if (fileContent) {
+        await supabase
+          .from("uploaded_files")
+          .update({ parsed_content: fileContent })
+          .eq("id", fileId);
+        console.log(`💾 Cached parsed content (${fileContent.length} chars)`);
+      }
     }
 
-    // 3. Fetch user profile and check credits early
+    // 3. Fetch user profile and check credits (only on first batch)
     const { data: profile } = await supabase
       .from("users")
       .select("*")
       .eq("id", user.id)
       .single();
 
-    if ((profile?.credit_balance || 0) < 1) {
+    if (batchIndex === 0 && (profile?.credit_balance || 0) < 1) {
       return NextResponse.json(
         { error: "Insufficient credits for AI extraction. Please top up." },
         { status: 402 },
@@ -111,20 +131,20 @@ export async function POST(req: NextRequest) {
     if (accountType) userContext.accountType = accountType;
     if (importRules) userContext.importRules = importRules;
 
-    const fileName = fileRecord.file_name.toLowerCase();
-    const contentToProcess = fileContent || (await fileBlob.text());
-    let transactions: any[] = [];
+    const contentToProcess = fileContent;
 
-    // 4. Perform AI Extraction (with support for Parallel Chunking on large files)
-    const CHUNK_THRESHOLD = 12000; // chars (~100-150 transactions)
-    const CHUNK_SIZE = 8000;
+    // 4. Build ALL chunks, but only process the one at batchIndex
+    const CHUNK_THRESHOLD = 12000;
+    const CHUNK_SIZE = 6000; // ~1500 tokens — safe for all models
+    const allChunks: string[] = [];
 
-    const chunks = [];
     if (contentToProcess.length > CHUNK_THRESHOLD) {
       console.log(
         `⚡ Large file detected (${contentToProcess.length} chars). Splitting into chunks...`,
       );
-      // Simple line-aware chunking
+
+      // Step 1: Try line-based chunking first
+      const rawChunks: string[] = [];
       const lines = contentToProcess.split("\n");
       let currentChunk = "";
       for (const line of lines) {
@@ -132,114 +152,128 @@ export async function POST(req: NextRequest) {
           currentChunk.length + line.length > CHUNK_SIZE &&
           currentChunk.length > 0
         ) {
-          chunks.push(currentChunk);
+          rawChunks.push(currentChunk);
           currentChunk = "";
         }
         currentChunk += line + "\n";
       }
-      if (currentChunk) chunks.push(currentChunk);
+      if (currentChunk) rawChunks.push(currentChunk);
 
-      // Limit parallelism to avoid 429s (2 chunks at a time is a good start)
-      if (chunks.length > 2) {
-        console.warn(
-          `⚠️ Limit reach: ${chunks.length} chunks. Processing first 2 in parallel for safety.`,
-        );
-        while (chunks.length > 2) chunks.pop();
+      // Step 2: Safety split — break any oversized chunks by character position
+      for (const chunk of rawChunks) {
+        if (chunk.length <= CHUNK_SIZE) {
+          allChunks.push(chunk);
+        } else {
+          // Force-split by character at CHUNK_SIZE boundaries
+          for (let i = 0; i < chunk.length; i += CHUNK_SIZE) {
+            allChunks.push(chunk.slice(i, i + CHUNK_SIZE));
+          }
+        }
       }
+
+      console.log(
+        `📦 Split into ${allChunks.length} chunks (max ${CHUNK_SIZE} chars each)`,
+      );
     } else {
-      chunks.push(contentToProcess);
+      allChunks.push(contentToProcess);
     }
 
-    console.log(
-      `🤖 Starting AI extraction (${chunks.length} parallel tasks)...`,
-    );
+    const totalChunks = allChunks.length;
+
+    if (batchIndex >= totalChunks) {
+      return NextResponse.json(
+        { error: "Batch index out of range" },
+        { status: 400 },
+      );
+    }
+
+    // Only process the single chunk for this batch
+    const chunkToProcess = allChunks[batchIndex];
+    const hasMore = batchIndex + 1 < totalChunks;
+
+    console.log(`🤖 Processing batch ${batchIndex + 1} of ${totalChunks}...`);
 
     const encoder = new TextEncoder();
-    let creditDeducted = false;
     let finalNewBalance = profile.credit_balance || 0;
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Create parallel extraction tasks
-          const extractionPromises = chunks.map(async (chunk, index) => {
+          let chunkTransactions: any[] = [];
+
+          // Try Kimi first, then OpenAI, then Gemini
+          try {
+            const { extractDataFromStatement: extractWithKimi } =
+              await import("@/lib/kimi");
+            chunkTransactions = await extractWithKimi(
+              chunkToProcess,
+              fileRecord.file_type,
+              userContext,
+            );
+          } catch (kimiError) {
+            console.error(
+              `Batch ${batchIndex} Kimi failure, falling back to OpenAI...`,
+              kimiError,
+            );
             try {
-              const { extractDataFromStatement: extractWithKimi } =
-                await import("@/lib/kimi");
-              const chunkTransactions = await extractWithKimi(
-                chunk,
+              const { extractDataFromStatement: extractWithOpenAI } =
+                await import("@/lib/openai");
+              chunkTransactions = await extractWithOpenAI(
+                chunkToProcess,
                 fileRecord.file_type,
-                userContext,
               );
-
-              if (chunkTransactions.length > 0) {
-                // Deduct credit only once upon first success
-                if (!creditDeducted) {
-                  creditDeducted = true;
-                  finalNewBalance = Math.max(0, finalNewBalance - 1);
-                  await supabase
-                    .from("users")
-                    .update({ credit_balance: finalNewBalance })
-                    .eq("id", user.id);
-                }
-
-                // Stream the chunk results immediately
-                const payload = JSON.stringify({
-                  transactions: chunkTransactions,
-                  chunkIndex: index,
-                  progress: 40 + Math.round(((index + 1) / chunks.length) * 50),
-                });
-                controller.enqueue(encoder.encode(payload + "\n"));
-              }
-            } catch (kimiError) {
+            } catch (openAiError) {
               console.error(
-                `Chunk ${index} Kimi failure, falling back to OpenAI...`,
-                kimiError,
+                `Batch ${batchIndex} OpenAI fallback failed, trying Gemini...`,
+                openAiError,
               );
               try {
-                const { extractDataFromStatement: extractWithOpenAI } =
-                  await import("@/lib/openai");
-                const chunkTransactions = await extractWithOpenAI(
-                  chunk,
+                const { extractDataFromStatement: extractWithGemini } =
+                  await import("@/lib/gemini");
+                chunkTransactions = await extractWithGemini(
+                  chunkToProcess,
                   fileRecord.file_type,
+                  userContext,
                 );
-
-                if (chunkTransactions.length > 0) {
-                  if (!creditDeducted) {
-                    creditDeducted = true;
-                    finalNewBalance = Math.max(0, finalNewBalance - 1);
-                    await supabase
-                      .from("users")
-                      .update({ credit_balance: finalNewBalance })
-                      .eq("id", user.id);
-                  }
-                  const payload = JSON.stringify({
-                    transactions: chunkTransactions,
-                    chunkIndex: index,
-                    progress:
-                      40 + Math.round(((index + 1) / chunks.length) * 50),
-                  });
-                  controller.enqueue(encoder.encode(payload + "\n"));
-                }
-              } catch (openAiError) {
+              } catch (geminiError) {
                 console.error(
-                  `Chunk ${index} OpenAI fallback failed:`,
-                  openAiError,
+                  `Batch ${batchIndex} ALL AI engines failed:`,
+                  geminiError,
                 );
               }
             }
-          });
+          }
 
-          // Wait for all chunks to finish
-          await Promise.all(extractionPromises);
+          // Deduct credit only on the FIRST batch
+          if (batchIndex === 0 && chunkTransactions.length > 0) {
+            finalNewBalance = Math.max(0, finalNewBalance - 1);
+            await supabase
+              .from("users")
+              .update({ credit_balance: finalNewBalance })
+              .eq("id", user.id);
+          }
 
-          // Final message with updated balance
+          // Stream the transactions
+          if (chunkTransactions.length > 0) {
+            const payload = JSON.stringify({
+              transactions: chunkTransactions,
+              chunkIndex: batchIndex,
+              progress: Math.round(((batchIndex + 1) / totalChunks) * 100),
+            });
+            controller.enqueue(encoder.encode(payload + "\n"));
+          }
+
+          // Final status with batch info
           controller.enqueue(
             encoder.encode(
               JSON.stringify({
                 status: "complete",
                 newBalance: finalNewBalance,
-                progress: 100,
+                progress: Math.round(((batchIndex + 1) / totalChunks) * 100),
+                hasMore,
+                nextBatchIndex: batchIndex + 1,
+                totalChunks,
+                currentBatch: batchIndex,
               }) + "\n",
             ),
           );
