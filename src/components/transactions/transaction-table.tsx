@@ -58,6 +58,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
     const [editCategory, setEditCategory] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
     const filtered = transactions.filter(tx =>
         tx.description?.toLowerCase().includes(search.toLowerCase()) ||
@@ -140,6 +141,39 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
             toast.error("Failed to delete transactions: " + error.message);
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleBatchCategoryChange = async (newCategory: string) => {
+        if (selectedIds.size === 0) return;
+        const cat = categories.find(c => c.value === newCategory);
+
+        setIsBulkUpdating(true);
+        try {
+            const response = await fetch('/api/user/transactions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ids: Array.from(selectedIds),
+                    updates: {
+                        category: newCategory,
+                        is_income: cat?.isIncome || false,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to update categories');
+            }
+
+            toast.success(`Updated ${selectedIds.size} transactions to "${cat?.label || newCategory}"`);
+            setSelectedIds(new Set());
+            if (onUpdate) onUpdate();
+        } catch (error: any) {
+            toast.error("Failed to update categories: " + error.message);
+        } finally {
+            setIsBulkUpdating(false);
         }
     };
 
@@ -298,6 +332,25 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                             >
                                 Deselect all
                             </Button>
+                            <div className="h-4 w-px bg-slate-700" />
+                            <Select
+                                onValueChange={handleBatchCategoryChange}
+                                disabled={isBulkUpdating}
+                            >
+                                <SelectTrigger className="h-8 w-[160px] bg-slate-800 border-slate-600 text-white text-xs">
+                                    {isBulkUpdating ? (
+                                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                                    ) : (
+                                        <Edit2 className="w-3 h-3 mr-1" />
+                                    )}
+                                    <SelectValue placeholder="Change category" />
+                                </SelectTrigger>
+                                <SelectContent position="popper" className="max-h-[300px]">
+                                    {categories.map(cat => (
+                                        <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <Button
                                 variant="destructive"
                                 size="sm"
@@ -310,7 +363,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                 ) : (
                                     <Trash2 className="w-4 h-4 mr-2" />
                                 )}
-                                Delete Selected
+                                Delete
                             </Button>
                         </div>
                     </div>

@@ -125,3 +125,40 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { ids, updates } = await request.json();
+
+    if (!ids || !Array.isArray(ids) || !updates) {
+      return NextResponse.json(
+        { error: "Invalid request: ids and updates are required" },
+        { status: 400 },
+      );
+    }
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        ...updates,
+        manually_categorized: true,
+      })
+      .in("id", ids)
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, count: ids.length });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
