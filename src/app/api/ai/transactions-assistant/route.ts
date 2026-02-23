@@ -42,6 +42,108 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Server-side scope filter — block off-topic messages before they reach AI
+    const lowerMsg = message.toLowerCase().trim();
+    const transactionKeywords = [
+      "transaction",
+      "categorize",
+      "recategorize",
+      "category",
+      "change",
+      "edit",
+      "delete",
+      "remove",
+      "update",
+      "move",
+      "switch",
+      "set",
+      "mark",
+      "bulk",
+      "income",
+      "expense",
+      "salary",
+      "rent",
+      "food",
+      "transfer",
+      "bank",
+      "charge",
+      "pos",
+      "atm",
+      "debit",
+      "credit",
+      "payment",
+      "business",
+      "personal",
+      "utility",
+      "utilities",
+      "insurance",
+      "pension",
+      "nhf",
+      "crypto",
+      "freelance",
+      "capital",
+      "donation",
+      "tax",
+      "subscription",
+      "professional",
+      "maintenance",
+      "health",
+      "miscellaneous",
+      "all",
+      "under",
+      "above",
+      "below",
+      "over",
+      "less",
+      "more",
+      "amount",
+      "naira",
+      "₦",
+      "ngn",
+      "date",
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
+      "jan",
+      "feb",
+      "mar",
+      "apr",
+      "jun",
+      "jul",
+      "aug",
+      "sep",
+      "oct",
+      "nov",
+      "dec",
+    ];
+
+    // Allow short messages (likely follow-ups like "3" or "yes") and keyword matches
+    const isShortFollowUp = lowerMsg.length <= 30;
+    const isNumericResponse = /^\d+\.?$/.test(lowerMsg);
+    const hasTransactionKeyword = transactionKeywords.some((kw) =>
+      lowerMsg.includes(kw),
+    );
+
+    if (!isShortFollowUp && !isNumericResponse && !hasTransactionKeyword) {
+      return NextResponse.json({
+        reply:
+          'I can only help with editing, recategorizing, or deleting your transactions. Try something like:\n\n• "Change all bank charges to personal expense"\n• "Delete transactions under ₦100"\n• "Recategorize my POS transactions"',
+        actions: [],
+        editCount: 0,
+        deleteCount: 0,
+        newBalance: profile?.credit_balance || 0,
+      });
+    }
+
     // Build a compact summary of transactions for the AI
     const txSummary = (transactions || []).map((tx: any) => ({
       id: tx.id,
