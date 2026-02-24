@@ -213,7 +213,7 @@ export default function TaxCalculatorPage() {
                 </div>
 
                 <div className="space-y-6">
-                    <TaxSummaryCard calculation={calculation} settings={settings} />
+                    <TaxSummaryCard calculation={calculation} settings={settings} transactions={transactions} />
                     <TaxCalculator
                         userId={user?.id}
                         transactions={transactions}

@@ -21,11 +21,19 @@ export const CATEGORY_LABELS: Record<string, string> = {
   food: "Food & Dining",
   transportation: "Transportation",
   business_expenses: "Business Expenses",
+  subscriptions: "Subscriptions",
+  professional_fees: "Professional Fees",
+  maintenance: "Maintenance",
+  health: "Health",
+  donations: "Donations",
+  tax_payments: "Tax Payments",
+  bank_charges: "Bank Charges",
   pension_contributions: "Pension Contributions",
   nhf_contributions: "NHF Contributions",
   insurance: "Insurance",
   transfers: "Transfers",
   crypto_purchase: "Crypto Purchase",
+  personal_expense: "Personal Expense",
   miscellaneous: "Miscellaneous",
 };
 
@@ -39,10 +47,10 @@ function getEffectiveAmount(tx: any) {
   return base;
 }
 
-function isBusinessTransaction(tx: any) {
-  // If business_flag is not set, we might want to default to something or check category
-  // In taxpilot-ng it defaulted to 'personal' if not set.
-  return tx.business_flag === "business" || tx.business_flag === "mixed";
+function shouldIncludeInPL(tx: any) {
+  // Include all transactions UNLESS explicitly flagged as 'personal'
+  // Unset business_flag → included by default (most users won't flag manually)
+  return tx.business_flag !== "personal";
 }
 
 export function usePLData(
@@ -51,7 +59,7 @@ export function usePLData(
   selectedDate: Date,
 ) {
   return useMemo(() => {
-    let filtered = transactions.filter(isBusinessTransaction);
+    let filtered = transactions.filter(shouldIncludeInPL);
 
     // Period filter
     if (period === "monthly" && selectedDate) {
@@ -142,12 +150,12 @@ export function usePLData(
     });
     const monthlyChart = months.map((m) => {
       const label = format(m, "MMM");
-      const start = startOfMonth(m);
-      const end = endOfMonth(m);
+      const mStart = startOfMonth(m);
+      const mEnd = endOfMonth(m);
       const txMonth = transactions.filter((tx) => {
-        if (!tx.date || !isBusinessTransaction(tx)) return false;
+        if (!tx.date || !shouldIncludeInPL(tx)) return false;
         const d = new Date(tx.date);
-        return d >= start && d <= end;
+        return d >= mStart && d <= mEnd;
       });
       const inc = txMonth
         .filter((t) => t.is_income)

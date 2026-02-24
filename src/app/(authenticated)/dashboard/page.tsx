@@ -42,7 +42,7 @@ export default function Dashboard() {
         queryKey: ['transactions', user?.id],
         queryFn: async () => {
             if (!user?.id) return []
-            const res = await fetch(`/api/user/transactions?year=${currentYear}&limit=100`)
+            const res = await fetch(`/api/user/transactions?year=${currentYear}`)
             if (!res.ok) return []
             return res.json()
         },
@@ -162,7 +162,7 @@ export default function Dashboard() {
             {/* Tax Summary & Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1">
-                    <TaxSummaryCard calculation={calculation} settings={settings} />
+                    <TaxSummaryCard calculation={calculation} settings={settings} transactions={transactions} />
                 </div>
                 <div className="lg:col-span-2">
                     <IncomeChart data={monthlyData} />

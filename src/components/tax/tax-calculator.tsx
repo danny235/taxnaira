@@ -62,17 +62,34 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
             .filter(t => t.category === 'nhf_contributions')
             .reduce((sum, t) => sum + (t.naira_value || t.amount || 0), 0);
 
-        const businessExpenses = expenseTransactions
-            .filter(t => t.category === 'business_expenses')
-            .reduce((sum, t) => sum + (t.naira_value || t.amount || 0), 0);
+        // For self-employed/business_owner: deduct ALL expenses (not just business_expenses category)
+        // Exclude explicitly personal-flagged transactions
+        const deductibleExpenses = expenseTransactions
+            .filter(t => {
+                // Exclude personal-flagged expenses and non-deductible categories
+                if (t.business_flag === 'personal') return false;
+                // Exclude personal expense category
+                if (t.category === 'personal_expense') return false;
+                // For mixed, apply deductible percentage
+                return true;
+            })
+            .reduce((sum, t) => {
+                const amount = t.naira_value || t.amount || 0;
+                if (t.business_flag === 'mixed') {
+                    return sum + (amount * ((t.deductible_percentage ?? 100) / 100));
+                }
+                return sum + amount;
+            }, 0);
 
         const exemptionThreshold = settings?.exemption_threshold || 800000;
 
         let taxableIncome = 0;
         if (employmentType === 'self_employed' || employmentType === 'business_owner') {
-            const netProfit = Math.max(0, totalIncome - businessExpenses);
+            // Self-employed: Net Profit = Income - All deductible expenses - Pension - NHF
+            const netProfit = Math.max(0, totalIncome - deductibleExpenses);
             taxableIncome = Math.max(0, netProfit - pensionDeduction - nhfDeduction);
         } else {
+            // Salary earner: Income - Pension - NHF
             taxableIncome = Math.max(0, totalIncome - pensionDeduction - nhfDeduction);
         }
 

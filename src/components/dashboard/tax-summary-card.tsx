@@ -8,15 +8,26 @@ import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 interface TaxSummaryCardProps {
     calculation: any;
     settings?: any;
+    transactions?: any[];
 }
 
-export default function TaxSummaryCard({ calculation, settings }: TaxSummaryCardProps) {
+export default function TaxSummaryCard({ calculation, settings, transactions = [] }: TaxSummaryCardProps) {
     const exemptionThreshold = settings?.exemption_threshold || 800000;
-    const totalIncome = calculation?.total_income || 0;
-    const grossTax = Math.round(calculation?.gross_tax || 0);
-    const payeCredit = Math.round(calculation?.paye_credit || 0);
-    const finalLiability = Math.round(calculation?.final_tax_liability || 0);
-    // Headline = what you still owe after PAYE; bottom grid = gross (before PAYE)
+
+    // Try to read from calculation_details (nested JSON) or root-level fields
+    const details = calculation?.calculation_details || calculation || {};
+
+    // Compute live from transactions if no saved calculation
+    const liveIncome = transactions
+        .filter((t: any) => t.is_income)
+        .reduce((sum: number, t: any) => sum + (t.naira_value || t.amount || 0), 0);
+
+    const totalIncome = details.total_income || calculation?.total_income || liveIncome || 0;
+    const grossTax = Math.round(details.gross_tax || 0);
+    const payeCredit = Math.round(details.paye_credit || 0);
+    const finalLiability = Math.round(
+        details.final_tax_liability || calculation?.tax_due || 0
+    );
     const amountDue = finalLiability;
 
     const progressPercent = Math.min(100, (totalIncome / exemptionThreshold) * 100);

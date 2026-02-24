@@ -6,16 +6,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Check, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Pencil, Check, X, CheckSquare, Square, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 interface EditRowProps {
     tx: any;
     onSave: () => void;
+    selected: boolean;
+    onToggle: () => void;
 }
 
-function EditRow({ tx, onSave }: EditRowProps) {
+function EditRow({ tx, onSave, selected, onToggle }: EditRowProps) {
     const [editing, setEditing] = useState(false);
     const [flag, setFlag] = useState(tx.business_flag || 'personal');
     const [deductible, setDeductible] = useState(tx.deductible_flag ?? false);
@@ -45,13 +48,22 @@ function EditRow({ tx, onSave }: EditRowProps) {
         }
     };
 
-    const flagColor = flag === 'business' ? 'bg-emerald-100 text-emerald-700' : flag === 'mixed' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500';
+    const flagColor = flag === 'business' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : flag === 'mixed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400';
 
     return (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 px-2 transition-colors">
-            <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{tx.description || 'No description'}</p>
-                <p className="text-[11px] text-slate-400">{tx.date ? format(new Date(tx.date), 'dd MMM yyyy') : ''} · {tx.is_income ? 'Income' : 'Expense'}</p>
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+                <button onClick={onToggle} className="shrink-0 p-0.5">
+                    {selected ? (
+                        <CheckSquare className="w-4 h-4 text-emerald-600" />
+                    ) : (
+                        <Square className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                    )}
+                </button>
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{tx.description || 'No description'}</p>
+                    <p className="text-[11px] text-slate-400">{tx.date ? format(new Date(tx.date), 'dd MMM yyyy') : ''} · {tx.is_income ? 'Income' : 'Expense'}</p>
+                </div>
             </div>
             <div className="flex items-center gap-3 shrink-0">
                 <span className="text-sm font-semibold tabular-nums text-slate-700 dark:text-slate-300">
@@ -98,10 +110,10 @@ function EditRow({ tx, onSave }: EditRowProps) {
                             </div>
                         )}
                         <div className="flex items-center gap-1">
-                            <button onClick={handleSave} className="p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100">
+                            <button onClick={handleSave} className="p-1.5 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50">
                                 <Check className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => setEditing(false)} className="p-1.5 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-100">
+                            <button onClick={() => setEditing(false)} className="p-1.5 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600">
                                 <X className="w-3.5 h-3.5" />
                             </button>
                         </div>
@@ -127,13 +139,58 @@ interface PLTransactionEditorProps {
 export default function PLTransactionEditor({ transactions, onUpdate }: PLTransactionEditorProps) {
     const [showAll, setShowAll] = useState(false);
     const [flagFilter, setFlagFilter] = useState('all');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [isBatchUpdating, setIsBatchUpdating] = useState(false);
 
     const filtered = flagFilter === 'all'
         ? transactions
         : transactions.filter(tx => (tx.business_flag || 'personal') === flagFilter);
 
-    const visible = showAll ? filtered : filtered.slice(0, 10);
+    const visible = showAll ? filtered : filtered.slice(0, 20);
     const personalCount = transactions.filter(tx => !tx.business_flag || tx.business_flag === 'personal').length;
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const selectAll = () => {
+        if (selectedIds.size === filtered.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filtered.map(tx => tx.id)));
+        }
+    };
+
+    const handleBatchReclassify = async (newFlag: string) => {
+        if (selectedIds.size === 0) return;
+        setIsBatchUpdating(true);
+        try {
+            const response = await fetch('/api/user/transactions', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ids: Array.from(selectedIds),
+                    updates: { business_flag: newFlag }
+                })
+            });
+            if (!response.ok) throw new Error('Failed to update');
+            toast.success(`${selectedIds.size} transactions reclassified as ${newFlag}`);
+            setSelectedIds(new Set());
+            onUpdate();
+        } catch (e) {
+            toast.error('Failed to reclassify transactions');
+        } finally {
+            setIsBatchUpdating(false);
+        }
+    };
 
     return (
         <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
@@ -150,12 +207,12 @@ export default function PLTransactionEditor({ transactions, onUpdate }: PLTransa
                 )}
             </CardHeader>
             <CardContent>
-                {/* Filter tabs */}
-                <div className="flex gap-2 mb-4 flex-wrap">
+                {/* Filter tabs + Select All */}
+                <div className="flex flex-wrap items-center gap-2 mb-4">
                     {FLAG_FILTERS.map(f => (
                         <button
                             key={f.value}
-                            onClick={() => { setFlagFilter(f.value); setShowAll(false); }}
+                            onClick={() => { setFlagFilter(f.value); setShowAll(false); setSelectedIds(new Set()); }}
                             className={`px-3 py-1 rounded-full text-[11px] font-medium border transition-all ${flagFilter === f.value
                                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                                 : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-emerald-400'
@@ -169,6 +226,13 @@ export default function PLTransactionEditor({ transactions, onUpdate }: PLTransa
                             )}
                         </button>
                     ))}
+                    <div className="h-4 w-px bg-slate-200 dark:bg-slate-600 mx-1" />
+                    <button
+                        onClick={selectAll}
+                        className="px-3 py-1 rounded-full text-[11px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-emerald-400 transition-all"
+                    >
+                        {selectedIds.size === filtered.length && filtered.length > 0 ? 'Deselect all' : 'Select all'}
+                    </button>
                 </div>
 
                 {filtered.length === 0 ? (
@@ -178,18 +242,75 @@ export default function PLTransactionEditor({ transactions, onUpdate }: PLTransa
                 ) : (
                     <div className="bg-slate-50/30 dark:bg-slate-900/10 rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800">
                         {visible.map(tx => (
-                            <EditRow key={tx.id} tx={tx} onSave={onUpdate} />
+                            <EditRow
+                                key={tx.id}
+                                tx={tx}
+                                onSave={onUpdate}
+                                selected={selectedIds.has(tx.id)}
+                                onToggle={() => toggleSelect(tx.id)}
+                            />
                         ))}
                     </div>
                 )}
 
-                {filtered.length > 10 && (
+                {filtered.length > 20 && (
                     <button
                         onClick={() => setShowAll(v => !v)}
                         className="text-xs text-emerald-600 hover:text-emerald-700 hover:underline mt-4 font-medium"
                     >
                         {showAll ? 'Show less' : `Show all ${filtered.length} transactions`}
                     </button>
+                )}
+
+                {/* Floating batch reclassify bar */}
+                {selectedIds.size > 0 && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div className="bg-slate-900 dark:bg-slate-800 text-white px-5 py-3 rounded-full border border-slate-700 dark:border-slate-600 shadow-2xl flex items-center gap-4">
+                            <span className="text-sm font-medium">
+                                {selectedIds.size} selected
+                            </span>
+                            <div className="h-4 w-px bg-slate-700" />
+                            {isBatchUpdating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/30"
+                                        onClick={() => handleBatchReclassify('business')}
+                                    >
+                                        → Business
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-900/30"
+                                        onClick={() => handleBatchReclassify('mixed')}
+                                    >
+                                        → Mixed
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-700"
+                                        onClick={() => handleBatchReclassify('personal')}
+                                    >
+                                        → Personal
+                                    </Button>
+                                    <div className="h-4 w-px bg-slate-700" />
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-7 text-xs text-slate-500 hover:text-white hover:bg-slate-700"
+                                        onClick={() => setSelectedIds(new Set())}
+                                    >
+                                        Cancel
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 )}
             </CardContent>
         </Card>
