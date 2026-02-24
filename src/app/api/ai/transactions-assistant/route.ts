@@ -210,7 +210,10 @@ BEHAVIOR RULES:
 4. Only use transaction IDs from the data above. Never invent transactions.
 5. For edits, always include the correct is_income boolean based on the category.
 6. Group similar actions together.
-7. BATCH OPERATIONS: When the user says "all" or refers to a group of transactions by category name, description keyword, or any filter criteria, you MUST include ALL matching transaction IDs in the action's "ids" array. Never return only the first match. Scan every transaction in the data and include every ID that matches the user's criteria.`;
+7. BATCH OPERATIONS: When the user says "all" or refers to a group of transactions by category name, description keyword, or any filter criteria, you MUST include ALL matching transaction IDs in the action's "ids" array. Never return only the first match. Scan every transaction in the data and include every ID that matches the user's criteria.
+8. FUZZY / PARTIAL MATCHING: The user does NOT need to type the full, exact transaction description. If they mention a keyword like "POS", "bank", "transfer", "salary", etc., match EVERY transaction whose description CONTAINS that keyword as a substring (case-insensitive). For example, "POS" should match "POS Purchase at Shoprite", "POS/WEB - TRANSFER", "POS Debit" and any other transaction with "POS" anywhere in its description.
+9. ABBREVIATIONS & SHORTHAND: Handle common shorthand and abbreviations. For example, "bank charges" should match "BANK CHARGES", "Bank Charge Fee", "NIBSS Bank Charges", etc. Match liberally — if the keyword appears anywhere in the description, include that transaction.
+10. NEVER MISS MATCHES: When processing a bulk request, iterate through EVERY single transaction in the data and check if the user's keyword appears as a case-insensitive substring of the description. Do not stop at the first match. Include ALL matching IDs. If you find 0 matches, tell the user that no transactions matched and suggest they try a different keyword.`;
 
     // Build the messages array: system + conversation history + current message
     const messages: any[] = [{ role: "system", content: systemMessage }];

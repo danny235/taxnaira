@@ -278,6 +278,15 @@ export default function TransactionsPage() {
                 </Select>
             </div>
 
+            {/* AI Transaction Assistant — inline tool panel */}
+            <TransactionAssistant
+                transactions={transactions}
+                onUpdate={fetchTransactions}
+                creditBalance={creditBalance}
+                onCreditUpdate={setCreditBalance}
+                userId={user?.id || ''}
+            />
+
             {/* Transactions Table */}
             {loading ? (
                 <div className="flex items-center justify-center py-12">
@@ -286,15 +295,6 @@ export default function TransactionsPage() {
             ) : (
                 <TransactionTable transactions={filtered} onUpdate={fetchTransactions} />
             )}
-
-            {/* AI Transaction Assistant */}
-            <TransactionAssistant
-                transactions={transactions}
-                onUpdate={fetchTransactions}
-                creditBalance={creditBalance}
-                onCreditUpdate={setCreditBalance}
-                userId={user?.id || ''}
-            />
         </div>
     );
 }
