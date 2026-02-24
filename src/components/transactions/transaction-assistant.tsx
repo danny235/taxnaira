@@ -7,6 +7,7 @@ import { Bot, X, Send, Loader2, Sparkles, Edit2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Message {
     role: "user" | "assistant";
@@ -20,6 +21,7 @@ interface TransactionAssistantProps {
     onUpdate: () => void;
     creditBalance: number | null;
     onCreditUpdate: (balance: number) => void;
+    userId: string;
 }
 
 export default function TransactionAssistant({
@@ -27,7 +29,9 @@ export default function TransactionAssistant({
     onUpdate,
     creditBalance,
     onCreditUpdate,
+    userId,
 }: TransactionAssistantProps) {
+    const queryClient = useQueryClient();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -108,6 +112,11 @@ export default function TransactionAssistant({
 
             if (data.newBalance !== undefined) {
                 onCreditUpdate(data.newBalance);
+                // Sync header credits via react-query cache
+                queryClient.setQueryData(['profile', userId], (oldData: any) => {
+                    if (!oldData) return oldData;
+                    return { ...oldData, credit_balance: data.newBalance };
+                });
             }
 
             if (data.editCount > 0 || data.deleteCount > 0) {

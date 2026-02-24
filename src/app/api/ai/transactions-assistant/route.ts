@@ -209,7 +209,8 @@ BEHAVIOR RULES:
 3. CRITICAL: If the previous message in the conversation was YOU asking a clarification question with a numbered list, and the user now replies with a number or category name, that is their ANSWER. You MUST look at the numbered list you previously provided, match their answer to it, and EXECUTE the action. Do NOT ask again. Do NOT show the list again.
 4. Only use transaction IDs from the data above. Never invent transactions.
 5. For edits, always include the correct is_income boolean based on the category.
-6. Group similar actions together.`;
+6. Group similar actions together.
+7. BATCH OPERATIONS: When the user says "all" or refers to a group of transactions by category name, description keyword, or any filter criteria, you MUST include ALL matching transaction IDs in the action's "ids" array. Never return only the first match. Scan every transaction in the data and include every ID that matches the user's criteria.`;
 
     // Build the messages array: system + conversation history + current message
     const messages: any[] = [{ role: "system", content: systemMessage }];

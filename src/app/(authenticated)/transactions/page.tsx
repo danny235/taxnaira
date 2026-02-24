@@ -293,6 +293,7 @@ export default function TransactionsPage() {
                 onUpdate={fetchTransactions}
                 creditBalance={creditBalance}
                 onCreditUpdate={setCreditBalance}
+                userId={user?.id || ''}
             />
         </div>
     );
