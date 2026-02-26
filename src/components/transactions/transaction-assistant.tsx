@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Bot, Send, Loader2, Sparkles, Edit2, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,13 +37,13 @@ export default function TransactionAssistant({
         {
             role: "assistant",
             content:
-                'Tell me what you\'d like to do, e.g.:\n\n• "Change all POS transactions to personal expense"\n• "Delete all transactions under ₦100"\n• "Recategorize bank charges to business expenses"',
+                'Tell me what you\'d like to do, e.g.:\n\n• "Add a new POS transaction for ₦5,000"\n• "Change all POS transactions to personal expense"\n• "Delete all transactions under ₦100"',
         },
     ]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -151,7 +151,7 @@ export default function TransactionAssistant({
                             AI Transaction Assistant
                         </span>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                            Bulk edit, recategorize, or delete transactions using natural language
+                            Add, bulk edit, recategorize, or delete transactions using natural language
                         </p>
                     </div>
                 </div>
@@ -238,15 +238,22 @@ export default function TransactionAssistant({
                                         e.preventDefault();
                                         handleSend();
                                     }}
-                                    className="flex items-center gap-2"
+                                    className="flex items-end gap-2"
                                 >
-                                    <Input
+                                    <Textarea
                                         ref={inputRef}
                                         value={input}
                                         onChange={(e) => setInput(e.target.value)}
-                                        placeholder='e.g. "Change all POS to personal expense"'
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSend();
+                                            }
+                                        }}
+                                        placeholder='e.g. "Add a salary of ₦50k" or "Change POS to personal"'
                                         disabled={isLoading}
-                                        className="flex-1 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm h-9"
+                                        className="flex-1 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-sm min-h-[36px] max-h-[120px] resize-none py-2"
+                                        rows={1}
                                     />
                                     <Button
                                         type="submit"

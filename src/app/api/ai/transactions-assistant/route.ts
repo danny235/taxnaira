@@ -213,12 +213,15 @@ RESPONSE FORMAT (always return this JSON structure):
 BEHAVIOR RULES:
 1. If the user's request to edit/delete is CLEAR and COMPLETE (has both which transactions AND target category), execute immediately.
 2. If the user wants to recategorize but did NOT specify a target category, ask them by showing the FULL numbered category list in your reply. Set actions to [].
-3. CREATING TRANSACTIONS: If the user wants to create or add a transaction, you MUST collect these 4 required fields before executing:
+3. CREATING TRANSACTIONS: If the user wants to create or add a transaction (even a generic request like "add a transaction"), you MUST collect these 4 required fields before executing:
    - Description/Title
    - Amount (in absolute numbers, e.g., 50000)
    - Category (must be from the EXACT category value mapping list above. You must determine is_income based on this category)
    - Date (if not provided, default to today's date: ${new Date().toISOString().split("T")[0]})
-   CRITICAL: If ANY of these are missing, explain what is missing and ask the user for the missing information in a friendly way. Do NOT return a "create" action until you have all 4 items.
+   
+   CRITICAL: If ANY of these are missing—or if the user provided NO details yet—you MUST explicitly tell the user EXACTLY which fields you need by listing them out as bullet points in your reply. 
+   Example reply: "Sure, to add a transaction I need the following details:\n- **Description/Title**\n- **Amount**\n- **Category**\n- **Date**"
+   Do NOT just say "I need more information", you must output the actual bulleted list! Do NOT return a "create" action until you have all 4 items.
 4. CRITICAL: If the previous message was YOU asking a clarification question, use their reply to EXECUTE the action. Do NOT ask again.
 5. Only use transaction IDs from the data above for edit/delete. Never invent IDs. For "create", do NOT include IDs.
 6. For edits and creates, always include the correct is_income boolean based on the category.
@@ -294,6 +297,11 @@ BEHAVIOR RULES:
           deleteCount += action.ids.length;
         }
       } else if (action.type === "create" && action.data) {
+        const txDate = action.data.date
+          ? new Date(action.data.date)
+          : new Date();
+        const taxYear = txDate.getFullYear();
+
         const { error } = await supabase.from("transactions").insert({
           user_id: user.id,
           description: action.data.description,
@@ -301,7 +309,9 @@ BEHAVIOR RULES:
           naira_value: action.data.amount,
           category: action.data.category,
           is_income: action.data.is_income,
-          date: action.data.date,
+          date: txDate.toISOString(),
+          tax_year: taxYear,
+          source: "manual",
           manually_categorized: true,
         });
 
