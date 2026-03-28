@@ -170,7 +170,7 @@ export default function FileUploader({ onUploadComplete, userId, autoUpload = fa
 
                     {file && !uploaded && (
                         <Button
-                            onClick={handleUpload}
+                            onClick={() => handleUpload()}
                             disabled={uploading}
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                         >

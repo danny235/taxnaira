@@ -49,7 +49,7 @@ const categoryLabels: Record<string, string> = {
 };
 
 interface Transaction {
-    tempId: number;
+    tempId: string;
     date: string;
     description: string;
     amount: number;
