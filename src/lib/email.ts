@@ -31,14 +31,14 @@ export async function sendOtpEmail(to: string, otp: string) {
           <div class="container">
             <div class="header">
               <div class="logo-circle">
-                ₦
+                A
               </div>
-              <h1>TaxNaira</h1>
-              <p>Simplify Your Tax Management</p>
+              <h1>AzaWise</h1>
+              <p>Smart Expense & Tax Management</p>
             </div>
             <div class="content">
               <div class="title">Verify Your Email</div>
-              <p class="text">Welcome to TaxNaira! Please use the verification code below to complete your registration.</p>
+              <p class="text">Welcome to AzaWise! Please use the verification code below to complete your registration.</p>
               <div class="otp-box">
                 <p class="otp-label">Verification Code</p>
                 <div class="otp-code">${otp}</div>
@@ -47,8 +47,8 @@ export async function sendOtpEmail(to: string, otp: string) {
               <p class="text" style="font-size: 14px; margin-bottom: 0;">If you didn't request this code, please ignore this email.</p>
             </div>
             <div class="footer">
-              <p>© ${new Date().getFullYear()} TaxNaira. All rights reserved.</p>
-              <p>Secure Tax Filing for Individuals and Businesses</p>
+              <p>© ${new Date().getFullYear()} AzaWise. All rights reserved.</p>
+              <p>Intelligent Financial Control for Everyone</p>
             </div>
           </div>
         </body>
@@ -57,9 +57,9 @@ export async function sendOtpEmail(to: string, otp: string) {
 
   try {
     const { data, error } = await resend.emails.send({
-      from: "TaxNaira <noreply@kraftkonect.com>", // Using default Resend test domain for now
+      from: "AzaWise <noreply@kraftkonect.com>", // Using default Resend test domain for now
       to: [to],
-      subject: "Verify Your Email - TaxNaira",
+      subject: "Verify Your Email - AzaWise",
       html,
     });
 
@@ -88,7 +88,7 @@ export async function sendReportReadyEmail(to: string, year: number) {
     </div>
   `;
   return resend.emails.send({
-    from: "TaxNaira <noreply@kraftkonect.com>",
+    from: "AzaWise <noreply@kraftkonect.com>",
     to: [to],
     subject: `Tax Report Ready - ${year}`,
     html,
@@ -108,9 +108,9 @@ export async function sendPaymentReceiptEmail(
     </div>
   `;
   return resend.emails.send({
-    from: "TaxNaira <noreply@kraftkonect.com>",
+    from: "AzaWise <noreply@kraftkonect.com>",
     to: [to],
-    subject: `Payment Receipt - TaxNaira`,
+    subject: `Payment Receipt - AzaWise`,
     html,
   });
 }

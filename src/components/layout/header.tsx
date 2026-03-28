@@ -14,7 +14,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, Menu, User, Settings, Crown, Coins } from 'lucide-react'
+import { Menu, User, Settings, Crown, Coins } from 'lucide-react'
+import { NotificationCenter } from '@/components/layout/notification-center'
 import { useAuth } from '@/components/auth-provider'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -76,10 +77,7 @@ export function Header({ user, profile, subscription, onMenuToggle, className }:
 
                 <ModeToggle />
 
-                <Button variant="ghost" size="icon" className="relative h-8 w-8">
-                    <Bell className="w-4 h-4" />
-                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-                </Button>
+                <NotificationCenter />
 
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>

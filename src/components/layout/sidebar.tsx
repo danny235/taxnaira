@@ -21,6 +21,7 @@ import {
     ChevronRight,
     TrendingUp,
     X,
+    Camera,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/components/auth-provider'
@@ -34,6 +35,7 @@ const pageToPath = (page: string) => {
 
 const navigation = [
     { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' },
+    { name: 'Snap Receipt', icon: Camera, page: 'Snap' },
     { name: 'Upload', icon: Upload, page: 'Upload' },
     { name: 'Transactions', icon: Receipt, page: 'Transactions' },
     { name: 'Profit & Loss', icon: TrendingUp, page: 'ProfitLoss' },
@@ -75,11 +77,11 @@ export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarP
             {/* Logo */}
             <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-700">
                 {!collapsed && (
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                            <span className="text-white font-bold text-sm">₦</span>
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 relative shrink-0">
+                            <img src="/logo.png" alt="AzaWise Logo" className="object-contain" />
                         </div>
-                        <span className="font-bold text-lg text-slate-900 dark:text-white">TaxNaira</span>
+                        <span className="font-bold text-xl tracking-tight text-slate-900 dark:text-white">AzaWise</span>
                     </div>
                 )}
                 {/* Desktop Toggle */}
@@ -113,7 +115,7 @@ export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarP
                             )}
                         >
                             <item.icon
-                                className={cn('w-5 h-5 flex-shrink-0', isActive && 'text-emerald-600 dark:text-emerald-400')}
+                                className={cn('w-5 h-5 shrink-0', isActive && 'text-emerald-600 dark:text-emerald-400')}
                             />
                             {!collapsed && (
                                 <>

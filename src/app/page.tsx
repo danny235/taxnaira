@@ -79,12 +79,12 @@ export default function LandingPage() {
       <header className="px-6 h-16 flex items-center justify-between border-b border-border/40 backdrop-blur-xl bg-background/70 sticky top-0 z-50 transition-all">
         <Link
           href="/"
-          className="flex items-center gap-2 font-bold text-xl tracking-tighter hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 font-bold text-2xl tracking-tight hover:opacity-90 transition-opacity"
         >
-          <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white h-8 w-8 rounded-lg flex items-center justify-center font-black text-sm">
-            TN
+          <div className="h-9 w-9 relative">
+            <img src="/logo.png" alt="AzaWise Logo" className="object-contain" />
           </div>
-          <span className="text-foreground">TaxNaira</span>
+          <span className="text-foreground tracking-tighter">AzaWise</span>
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
           <Link
@@ -205,8 +205,8 @@ export default function LandingPage() {
               className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter text-foreground"
               variants={itemVariants}
             >
-              Simplify Your Taxes <br className="hidden md:block" />
-              in <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-teal-600">Nigeria</span>
+              Master Your Money <br className="hidden md:block" />
+              with <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-teal-600">AzaWise</span>
             </motion.h1>
 
             <motion.p
@@ -251,7 +251,7 @@ export default function LandingPage() {
                   <div className="w-3 h-3 rounded-full bg-green-500/60"></div>
                 </div>
                 <div className="flex-1 text-center text-xs font-mono text-muted-foreground/50">
-                  dashboard.taxnaira.com
+                  app.azawise.com
                 </div>
               </div>
 
@@ -400,7 +400,7 @@ export default function LandingPage() {
               Ready to Simplify Your Finances?
             </h2>
             <p className="text-muted-foreground text-xl max-w-2xl mx-auto">
-              Join thousands of Nigerians who have switched to <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-teal-600 font-bold">TaxNaira</span> for stress-free tax filing.
+              Join thousands of Nigerians who have switched to <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-teal-600 font-bold">AzaWise</span> for effortless financial control.
             </p>
             <div className="flex justify-center gap-4 pt-6">
               <Link href="/dashboard/register">
@@ -416,11 +416,11 @@ export default function LandingPage() {
       <footer className="border-t py-16 px-6 bg-background">
         <div className="container mx-auto grid md:grid-cols-4 gap-12 text-sm">
           <div className="space-y-4">
-            <Link href="/" className="flex items-center gap-2 font-bold text-xl tracking-tighter">
-              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white h-8 w-8 rounded-lg flex items-center justify-center font-black text-sm">
-                TN
+            <Link href="/" className="flex items-center gap-3 font-bold text-2xl tracking-tight">
+              <div className="h-8 w-8 relative">
+                <img src="/logo.png" alt="AzaWise Logo" className="object-contain" />
               </div>
-              <span className="text-foreground">TaxNaira</span>
+              <span className="text-foreground tracking-tighter">AzaWise</span>
             </Link>
             <p className="text-muted-foreground max-w-xs leading-relaxed">
               Making tax compliance simple, accessible, and automated for everyone in Nigeria.
@@ -483,7 +483,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="container mx-auto mt-16 pt-8 border-t border-border/40 text-center text-muted-foreground text-xs">
-          <p>&copy; {new Date().getFullYear()} TaxNaira. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} AzaWise. All rights reserved.</p>
         </div>
       </footer>
     </div>

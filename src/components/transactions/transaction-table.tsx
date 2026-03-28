@@ -24,12 +24,19 @@ export const categories = [
     { value: 'utilities', label: 'Utilities', isIncome: false },
     { value: 'food', label: 'Food', isIncome: false },
     { value: 'transportation', label: 'Transportation', isIncome: false },
+    { value: 'fuel', label: 'Fuel', isIncome: false },
+    { value: 'data', label: 'Data', isIncome: false },
+    { value: 'staff salary', label: 'Staff Salary', isIncome: false },
+    { value: 'phone', label: 'Phone', isIncome: false },
     { value: 'business expenses', label: 'Business Expenses', isIncome: false },
     { value: 'pension contributions', label: 'Pension', isIncome: false },
     { value: 'nhf contributions', label: 'NHF', isIncome: false },
     { value: 'insurance', label: 'Insurance', isIncome: false },
     { value: 'transfers', label: 'Transfers', isIncome: false },
     { value: 'crypto purchase', label: 'Crypto Purchase', isIncome: false },
+    { value: 'tax_payments', label: 'Tax/Levies', isIncome: false },
+    { value: 'bank_charges', label: 'Bank Charges', isIncome: false },
+    { value: 'personal_expense', label: 'Personal Expense', isIncome: false },
     { value: 'miscellaneous', label: 'Miscellaneous', isIncome: false },
 ];
 
@@ -41,6 +48,8 @@ interface Transaction {
     naira_value?: number;
     currency?: string;
     category?: string;
+    main_category?: string;
+    sub_category?: string;
     is_income: boolean;
     manually_categorized?: boolean;
     ai_confidence?: number;
@@ -217,8 +226,9 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Date</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Description</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Amount</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Tax Status</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Category</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Confidence</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Source</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider w-[80px] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -249,6 +259,17 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                     )}
                                 </TableCell>
                                 <TableCell>
+                                    <Badge className={cn(
+                                        "text-[10px] uppercase tracking-wider font-bold h-5 py-0 px-2 border-0 shadow-sm", 
+                                        tx.main_category === 'Business' ? "bg-emerald-600 text-white hover:bg-emerald-600" :
+                                        tx.main_category === 'Mixed' ? "bg-amber-500 text-white hover:bg-amber-500" :
+                                        tx.main_category === 'Personal' ? "bg-blue-500 text-white hover:bg-blue-500" :
+                                        "bg-slate-400 text-white hover:bg-slate-400"
+                                    )}>
+                                        {tx.main_category || 'Business'}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
                                     {editingId === tx.id ? (
                                         <Select value={editCategory} onValueChange={setEditCategory}>
                                             <SelectTrigger className="w-[150px] h-8">
@@ -261,24 +282,36 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                             </SelectContent>
                                         </Select>
                                     ) : (
-                                        <Badge variant={tx.is_income ? "default" : "secondary"} className={tx.is_income ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : ""}>
-                                            {categories.find(c => c.value === tx.category)?.label || tx.category?.replace(/_/g, ' ') || 'Uncategorized'}
+                                        <Badge variant={tx.is_income ? "default" : "secondary"} className={cn(
+                                            "text-[10px] font-medium border-slate-200 dark:border-slate-700 shadow-none",
+                                            tx.is_income ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-50" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                        )}>
+                                            {categories.find(c => c.value === tx.sub_category)?.label || 
+                                             categories.find(c => c.value === tx.category)?.label || 
+                                             tx.sub_category?.replace(/_/g, ' ') || 
+                                             tx.category?.replace(/_/g, ' ') || 
+                                             'Uncategorized'}
                                         </Badge>
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    {tx.manually_categorized ? (
-                                        <Badge variant="outline" className="text-xs">Manual</Badge>
-                                    ) : tx.ai_confidence ? (
-                                        <div className="flex items-center gap-1">
-                                            {tx.ai_confidence < 0.7 && <AlertTriangle className="w-3 h-3 text-amber-500" />}
-                                            <span className={`text-xs ${tx.ai_confidence >= 0.7 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                                {Math.round(tx.ai_confidence * 100)}%
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-xs text-slate-400">-</span>
-                                    )}
+                                    <div className="flex flex-col gap-1">
+                                        {tx.manually_categorized ? (
+                                            <div className="flex items-center gap-1.5 text-slate-500">
+                                                <Check className="w-3 h-3 text-emerald-500" />
+                                                <span className="text-[10px] font-medium">Verified</span>
+                                            </div>
+                                        ) : tx.ai_confidence ? (
+                                            <div className="flex items-center gap-1.5 text-slate-500">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                <span className="text-[10px] font-medium">AI ({Math.round(tx.ai_confidence * 100)}%)</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-1.5 text-slate-400 italic">
+                                                <span className="text-[10px]">Direct Entry</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1">

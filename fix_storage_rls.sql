@@ -1,5 +1,5 @@
-
--- Fix Storage RLS Policies for TaxNaira
+-- Fix Storage RLS-- Migration Script for AzaWise
+-- This script creates the necessary tables, indexes, and RLS policies for the AzaWise application.
 -- Ensure the storage.objects table has policies for the tax_documents bucket
 
 -- 1. Enable RLS on storage.objects (just in case it's not enabled, though usually it is)

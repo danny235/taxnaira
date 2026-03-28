@@ -9,6 +9,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Sparkles, CheckCircle, AlertTriangle, FileText, Search, Brain, Zap, Info } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,31 +25,25 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
+const CATEGORY_MAP: Record<string, string[]> = {
+    Business: ['fuel', 'data', 'staff salary', 'bank_charges', 'tax_payments', 'miscellaneous'],
+    Mixed: ['fuel', 'phone', 'data', 'miscellaneous'],
+    Personal: ['fuel', 'data', 'staff salary', 'personal_expense', 'miscellaneous']
+};
+
 const categoryLabels: Record<string, string> = {
-    salary: 'Salary',
-    business_revenue: 'Business Revenue',
-    freelance_income: 'Freelance',
-    foreign_income: 'Foreign Income',
-    capital_gains: 'Capital Gains',
-    crypto_sale: 'Crypto Sale',
-    other_income: 'Other Income',
-    rent: 'Rent',
-    utilities: 'Utilities',
-    food_and_travel: 'Food & Travel',
-    transportation: 'Transport',
-    business_expense: 'Business Exp.',
-    subscriptions: 'Subscription',
-    professional_fees: 'Prof. Fees',
-    maintenance: 'Maintenance',
-    health: 'Health',
-    donations: 'Donations',
-    tax_payments: 'Tax Payout',
+    // Main Categories
+    Business: 'Business',
+    Mixed: 'Mixed',
+    Personal: 'Personal',
+    
+    // Sub Categories
+    fuel: 'Fuel',
+    data: 'Data',
+    'staff salary': 'Staff Salary',
+    phone: 'Phone',
     bank_charges: 'Bank Charges',
-    pension_contributions: 'Pension',
-    nhf_contributions: 'NHF',
-    insurance: 'Insurance',
-    transfers: 'Transfer',
-    crypto_purchase: 'Crypto Buy',
+    tax_payments: 'Tax/Levies',
     personal_expense: 'Personal',
     miscellaneous: 'Misc'
 };
@@ -55,6 +56,8 @@ interface Transaction {
     type: string; // 'credit' | 'debit'
     currency: string;
     category?: string;
+    main_category?: string;
+    sub_category?: string;
     is_income?: boolean;
     ai_confidence?: number;
     selected?: boolean;
@@ -111,7 +114,13 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 const toExtract = prev.slice(0, Math.min(2, prev.length));
                 const remaining = prev.slice(toExtract.length);
 
-                setTransactions(current => [...current, ...toExtract]);
+                setTransactions(current => {
+                    // Final fail-safe: Deduplicate against transactions already in state
+                    const existingTempIds = new Set(current.map(tx => tx.tempId));
+                    const newTxs = toExtract.filter(tx => !existingTempIds.has(tx.tempId));
+                    return [...current, ...newTxs];
+                });
+                
                 setSelected(current => {
                     const next = { ...current };
                     toExtract.forEach(tx => { next[tx.tempId] = true; });
@@ -149,7 +158,15 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
     const getTransactionSignature = (tx: any) => {
         // 1. Normalize Date (YYYY-MM-DD)
-        const dateStr = tx.date ? new Date(tx.date).toISOString().split('T')[0] : '0000-00-00';
+        let dateStr = '0000-00-00';
+        try {
+            const d = new Date(tx.date);
+            if (!isNaN(d.getTime())) {
+                dateStr = d.toISOString().split('T')[0];
+            }
+        } catch (e) {
+            console.error("Signature date error:", e);
+        }
 
         // 2. Normalize Amount (handles strings with symbols/commas safely)
         let amtValue = tx.amount;
@@ -158,11 +175,13 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         }
         const amount = Number(amtValue || 0).toFixed(2);
 
-        // 3. Normalize Description (lowercase, trim, collapse whitespace)
+        // 3. Normalize Description:
+        // - Lowercase, remove all non-alphanumeric
+        // - This handles "Apple Macbook" vs "Apple MacBook" vs "Apple-Macbook"
         const desc = (tx.description || '')
             .toLowerCase()
-            .trim()
-            .replace(/\s+/g, ' ');
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
 
         return `${dateStr}|${amount}|${desc}`;
     };
@@ -176,8 +195,8 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         if (batchIndex === 0) {
             setTransactions([]);
             setSelected({});
+            setTrickleQueue([]);
             seenSignaturesRef.current = new Set();
-            localTransactionCountRef.current = 0;
         }
 
         setParsingStatus('reading');
@@ -252,15 +271,27 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                 .filter(Boolean) as any[];
 
                             if (uniqueNewTxs.length > 0) {
-                                const finalTxs = uniqueNewTxs.map((tx, i) => ({
+                                // Use the signature as the unique key (tempId)
+                                // This solves the "duplicate key 0" error forever.
+                                const finalTxs = uniqueNewTxs.map(tx => ({
                                     ...tx,
-                                    tempId: localTransactionCountRef.current + i
+                                    tempId: getTransactionSignature(tx)
                                 }));
 
-                                localTransactionCountRef.current += finalTxs.length;
-                                setTotalPossibleCount(localTransactionCountRef.current);
-                                // Add to queue instead of direct state for "trickle" effect
-                                setTrickleQueue(prev => [...prev, ...finalTxs]);
+                                setTotalPossibleCount(prev => prev + finalTxs.length);
+                                
+                                // Internal deduplication check before adding to queue
+                                setTrickleQueue(prev => {
+                                    const next = [...prev];
+                                    for (const tx of finalTxs) {
+                                        // Final check to prevent race conditions or AI repetition
+                                        const isAlreadyInQueue = next.some(qTx => qTx.tempId === tx.tempId);
+                                        if (!isAlreadyInQueue) {
+                                            next.push(tx);
+                                        }
+                                    }
+                                    return next;
+                                });
                             }
 
                             if (data.progress) setProgress(data.progress);
@@ -327,8 +358,42 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         return;
     };
 
-    const toggleSelect = (tempId: number) => {
-        setSelected(prev => ({ ...prev, [tempId]: !prev[tempId] }));
+    const toggleSelect = (id: string) => {
+        setSelected(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const handleCategoryChange = (id: string, field: 'main_category' | 'sub_category', value: string) => {
+        setTransactions(prev => prev.map(tx => {
+            if (tx.tempId === id) {
+                const updated = { ...tx, [field]: value };
+                // Reset sub-category if main category changes to something incompatible
+                if (field === 'main_category' && !CATEGORY_MAP[value].includes(tx.sub_category || '')) {
+                    updated.sub_category = CATEGORY_MAP[value][0];
+                }
+                return updated;
+            }
+            return tx;
+        }));
+    };
+
+    const getCategorySummary = () => {
+        const summary: Record<string, Record<string, number>> = {};
+        
+        transactions.forEach(tx => {
+            if (!selected[tx.tempId]) return;
+            const main = tx.main_category || 'Uncategorized';
+            const sub = tx.sub_category || 'Other';
+            
+            if (!summary[main]) summary[main] = {};
+            if (!summary[main][sub]) summary[main][sub] = 0;
+            
+            // We use absolute value for summary or actual? 
+            // The user asked for "total summary", usually absolute spend or net?
+            // Given the context of "Business/Personal", we'll track absolute spend.
+            summary[main][sub] += Math.abs(tx.amount || 0);
+        });
+        
+        return summary;
     };
 
     const selectAll = (checked: boolean) => {
@@ -337,7 +402,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         // Checkbox onCheckedChange gives `CheckedState` which is boolean | 'indeterminate'.
         // We'll treat it as boolean.
 
-        const newSelected: Record<number, boolean> = {};
+        const newSelected: Record<string, boolean> = {};
         transactions.forEach(tx => {
             newSelected[tx.tempId] = checked;
         });
@@ -356,9 +421,13 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 amount: tx.amount,
                 currency: tx.currency || 'NGN',
                 naira_value: tx.currency === 'NGN' || !tx.currency ? tx.amount : tx.amount,
-                category: tx.category,
+                main_category: tx.main_category,
+                sub_category: tx.sub_category,
+                category: tx.sub_category || tx.main_category, // Favor specific sub-category for legacy view
                 is_income: tx.is_income,
                 source_file_id: fileId,
+                source: 'upload',
+                manually_categorized: true,
                 ai_confidence: tx.ai_confidence,
                 tax_year: new Date().getFullYear()
             }));
@@ -585,6 +654,37 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             </Button>
                         </div>
 
+                            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-slate-800">
+                                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                    <Zap className="w-4 h-4 text-emerald-500" />
+                                    Categorized Extraction Summary
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {Object.entries(getCategorySummary()).map(([main, subs]) => (
+                                        <div key={main} className="space-y-2">
+                                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{main}</div>
+                                            <div className="space-y-1">
+                                                {Object.entries(subs).map(([sub, total]) => (
+                                                    <div key={sub} className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
+                                                        <span className="text-slate-600 dark:text-slate-400">{categoryLabels[sub] || sub}</span>
+                                                        <span className="font-medium">₦{total.toLocaleString()}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex justify-between text-sm font-bold pt-1 text-emerald-600">
+                                                    <span>Total</span>
+                                                    <span>₦{Object.values(subs).reduce((a, b) => a + b, 0).toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {Object.keys(getCategorySummary()).length === 0 && (
+                                        <div className="col-span-3 text-center py-4 text-slate-400 text-sm">
+                                            No transactions selected for summary
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                             <Table>
                                 <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-700">
@@ -594,6 +694,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                         <TableHead>Description</TableHead>
                                         <TableHead>Amount</TableHead>
                                         <TableHead>Category</TableHead>
+                                        <TableHead>Sub Category</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -625,13 +726,36 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                                     {tx.is_income ? '+' : '-'}₦{tx.amount?.toLocaleString()}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {tx.category ? (
-                                                        <Badge variant="outline" className="text-[10px] h-5 py-0">
-                                                            {categoryLabels[tx.category] || tx.category}
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-[10px]">Pending</span>
-                                                    )}
+                                                    <Select
+                                                        value={tx.main_category || 'Business'}
+                                                        onValueChange={(val) => handleCategoryChange(tx.tempId, 'main_category', val)}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-[10px] w-[100px] bg-white dark:bg-slate-900">
+                                                            <SelectValue placeholder="Category" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Business">Business</SelectItem>
+                                                            <SelectItem value="Mixed">Mixed</SelectItem>
+                                                            <SelectItem value="Personal">Personal</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        value={tx.sub_category || ''}
+                                                        onValueChange={(val) => handleCategoryChange(tx.tempId, 'sub_category', val)}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-[10px] w-[110px] bg-white dark:bg-slate-900">
+                                                            <SelectValue placeholder="Sub-category" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {(CATEGORY_MAP[tx.main_category || 'Business'] || []).map(sub => (
+                                                                <SelectItem key={sub} value={sub}>
+                                                                    {categoryLabels[sub] || sub}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
                                                 </TableCell>
                                             </motion.tr>
                                         ))}

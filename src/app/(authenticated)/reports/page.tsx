@@ -12,6 +12,7 @@ import {
     generateExpenseAuditPDF
 } from '@/lib/pdf-reports'
 import { toast } from 'sonner'
+import CategorySummary from '@/components/dashboard/category-summary'
 
 export default function ReportsPage() {
     const { user } = useAuth()
@@ -91,6 +92,11 @@ export default function ReportsPage() {
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Tax Reports</h1>
                     <p className="text-slate-500 dark:text-slate-400">Generate and download your official tax documents.</p>
                 </div>
+            </div>
+
+            <div className="space-y-4">
+                <h2 className="text-lg font-bold">Expense Breakdown Summary</h2>
+                <CategorySummary transactions={transactions.filter((t: any) => !t.is_income)} />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

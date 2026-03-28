@@ -142,10 +142,14 @@ export async function classifyTransaction(
     ${contextStr}
 
     CATEGORIES & GUIDELINES:
-    Income: 'salary', 'business_revenue', 'freelance_income', 'foreign_income', 'capital_gains', 'crypto_sale', 'other_income'.
-    Expenses: 'rent', 'utilities', 'food_and_travel', 'transportation', 'business_expense', 'subscriptions', 'professional_fees', 'maintenance', 'health', 'donations', 'tax_payments', 'bank_charges', 'pension_contributions', 'nhf_contributions', 'insurance', 'transfers', 'crypto_purchase', 'personal_expense', 'miscellaneous'.
+    Main Categories: 'Business', 'Mixed', 'Personal'.
+    
+    Sub-Categories (Examples): 
+    - Business: 'fuel', 'data', 'staff salary', 'rent', 'utilities', 'professional_fees', 'marketing', 'inventory'
+    - Mixed: 'fuel', 'phone', 'data', 'transportation'
+    - Personal: 'fuel', 'data', 'staff salary', 'food', 'rent', 'health', 'donations', 'subscriptions'
 
-    Instructions: Choose the MOST specific category possible (e.g., 'rent' instead of 'business_expense'). 
+    Instructions: Choose the CORRECT Main Category and the MOST specific Sub-Category possible.
 
     Extract the transaction description EXACTLY as it appears in the input. DO NOT rewrite or refine it.
 
@@ -153,7 +157,8 @@ export async function classifyTransaction(
 
     Return ONLY a JSON object:
     {
-      "category": "string",
+      "main_category": "string",
+      "sub_category": "string",
       "confidence": number,
       "reasoning": "string",
       "description": "string" 
@@ -187,9 +192,81 @@ export async function classifyTransaction(
       baseUrl: "https://api.moonshot.ai/v1",
     });
     return {
-      category: categorizeTransaction(description, false),
+      main_category: "Mixed",
+      sub_category: "miscellaneous",
       confidence: 0,
       reasoning: "Error during Kimi classification",
     };
+  }
+}
+
+/**
+ * Extract transaction data from an image (screenshot/receipt)
+ */
+export async function extractDataFromImage(
+  base64Image: string,
+  imageType: string,
+  userContext?: any
+) {
+  const contextStr = buildUserContextStr(userContext);
+
+  const prompt = `
+    You are a professional Nigerian tax data extractor. Analyze this bank transaction screenshot or receipt image.
+    ${contextStr}
+
+    Extract every discernible transaction and return them as a JSON object with a key "transactions" (array of objects).
+    Each transaction object must have:
+    - date: (ISO 8601 format YYYY-MM-DD. If only day/month provided, use year ${new Date().getFullYear()})
+    - description: (string - Extract the narration/description EXACTLY as it appears.)
+    - amount: (number - Plain number, no commas or symbols. 2,500.00 -> 2500)
+    - is_income: (boolean - true if it's a credit/inflow, false if debit/outflow)
+    - main_category: (Business, Mixed, or Personal)
+    - sub_category: (Choose based on main_category: 
+        Business: fuel, data, staff salary; 
+        Mixed: fuel, phone, data; 
+        Personal: fuel, data, staff salary)
+    - reasoning: (string - Short logic for your categorization)
+
+    SELF-AUDIT:
+    Verify the amount and date against the image. 
+    Strictly map "Transfer fee", "Stamp duty" to 'bank_charges' under 'Business'.
+    Strictly map "Uber", "Bolt", "Fuel", "Petrol" to 'fuel'.
+    If the transaction serves both personal and business needs (e.g., a multi-use phone or home office data), map it to 'Mixed'.
+
+    Return ONLY valid JSON. No markdown wrappers.
+  `;
+
+  try {
+    const response = await kimi.chat.completions.create({
+      model: "kimi-k2.5", // or moonshot-v1-8k if configured for vision
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional Nigerian tax data extractor. You must output ONLY valid JSON.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${imageType};base64,${base64Image}`,
+              },
+            },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 1,
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) throw new Error("No content returned from Kimi Vision");
+
+    return cleanJsonResponse(content).transactions || [];
+  } catch (error: any) {
+    console.error("Kimi Vision Extraction Error:", error);
+    throw error;
   }
 }

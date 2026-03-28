@@ -72,9 +72,22 @@ export default function RecentTransactions({ transactions = [] }: RecentTransact
                     {tx.is_income ? '+' : '-'}₦
                     {(tx.naira_value || tx.amount || 0).toLocaleString()}
                   </p>
-                  <Badge variant="outline" className="text-xs mt-1">
-                    {categoryLabels[tx.category] || tx.category || 'Uncategorized'}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1 mt-1">
+                    {tx.main_category ? (
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-[10px] h-4 leading-none bg-blue-50 dark:bg-blue-900/20 text-blue-700 py-0 px-1 border-blue-100">
+                          {tx.main_category}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[10px] h-4 leading-none py-0 px-1">
+                          {tx.sub_category}
+                        </Badge>
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] h-4 leading-none py-0 px-1">
+                        {categoryLabels[tx.category] || tx.category || 'Uncategorized'}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             ))

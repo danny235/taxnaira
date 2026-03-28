@@ -88,7 +88,7 @@ export async function signup(formData: FormData) {
   // 6. Return success and redirect path
   return {
     success: true,
-    redirectUrl: `/verify`,
+    redirectUrl: `/verify?email=${encodeURIComponent(email)}`,
   };
 }
 
@@ -138,7 +138,31 @@ export async function verifyOtp(formData: FormData) {
   await supabase.from("verification_codes").delete().eq("id", codes.id);
 
   // 4. Return success and redirect path
-  return { success: true, redirectUrl: "/login?verified=true" };
+  // Since confirm email is OFF, the user already has a session from signup/login.
+  return { success: true, redirectUrl: "/dashboard" };
+}
+
+export async function resendOtp(email: string) {
+  const supabase = await createClient();
+
+  // 1. Generate new OTP
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+  // 2. Store OTP
+  const { error: dbError } = await supabase.from("verification_codes").insert({
+    email,
+    code,
+    type: "email_verification",
+    expires_at: expiresAt.toISOString(),
+  });
+
+  if (dbError) return { error: "Failed to generate new code." };
+
+  // 3. Send Email
+  await sendOtpEmail(email, code);
+
+  return { success: true };
 }
 
 export async function login(formData: FormData) {
@@ -176,6 +200,15 @@ export async function login(formData: FormData) {
     .single();
 
   // 5. Return success, redirect path, and profile data
+  if (profile && !profile.is_verified) {
+    return {
+      success: true,
+      redirectUrl: `/verify?email=${encodeURIComponent(email)}`,
+      user,
+      profile,
+    };
+  }
+
   return {
     success: true,
     redirectUrl: "/dashboard",

@@ -3,7 +3,7 @@
 
 import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Wallet, TrendingUp, Receipt, Calculator, ArrowUpRight, Loader2 } from 'lucide-react'
+import { Wallet, TrendingUp, Receipt, Calculator, ArrowUpRight, Loader2, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { format } from 'date-fns'
@@ -20,6 +20,7 @@ import TaxSummaryCard from '@/components/dashboard/tax-summary-card'
 import TaxSavingsPlanner from '@/components/dashboard/TaxSavingsPlanner'
 import Disclaimer from '@/components/common/disclaimer' // Need to check if this exists
 import { DashboardSkeleton } from '@/components/dashboard/dashboard-skeleton'
+import CategorySummary from '@/components/dashboard/category-summary'
 
 export default function Dashboard() {
     const currentYear = new Date().getFullYear()
@@ -117,8 +118,14 @@ export default function Dashboard() {
 
             {/* Quick Actions */}
             <div className="flex flex-wrap gap-3">
-                <Link href="/upload">
+                <Link href="/snap">
                     <Button className="bg-emerald-600 hover:bg-emerald-700">
+                        <Camera className="w-4 h-4 mr-2" />
+                        Snap Receipt
+                    </Button>
+                </Link>
+                <Link href="/upload">
+                    <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400">
                         <ArrowUpRight className="w-4 h-4 mr-2" />
                         Upload Statement
                     </Button>
@@ -157,6 +164,15 @@ export default function Dashboard() {
                     subtitle="Including crypto"
                     icon={TrendingUp}
                 />
+            </div>
+
+            {/* Category Breakdown */}
+            <div className="space-y-4">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                    <Receipt className="w-5 h-5 text-emerald-600" />
+                    Expense Breakdown
+                </h2>
+                <CategorySummary transactions={transactions.filter((t: any) => !t.is_income)} />
             </div>
 
             {/* Tax Summary & Charts */}

@@ -11,12 +11,14 @@ import { toast } from 'sonner';
 interface FileUploaderProps {
     onUploadComplete: (file: any, url: string) => void;
     userId?: string;
+    autoUpload?: boolean;
+    defaultFileType?: string;
 }
 
-export default function FileUploader({ onUploadComplete, userId }: FileUploaderProps) {
+export default function FileUploader({ onUploadComplete, userId, autoUpload = false, defaultFileType = 'bank_statement' }: FileUploaderProps) {
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
-    const [fileType, setFileType] = useState('bank_statement');
+    const [fileType, setFileType] = useState(defaultFileType);
     const [uploading, setUploading] = useState(false);
     const [uploaded, setUploaded] = useState(false);
 
@@ -38,24 +40,32 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
         if (droppedFile) {
             setFile(droppedFile);
             setUploaded(false);
+            if (autoUpload) {
+                // We use a small timeout to let the state update
+                setTimeout(() => handleUpload(droppedFile), 100);
+            }
         }
-    }, []);
+    }, [autoUpload]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
             setFile(selectedFile);
             setUploaded(false);
+            if (autoUpload) {
+                handleUpload(selectedFile);
+            }
         }
     };
 
-    const handleUpload = async () => {
-        if (!file) return;
+    const handleUpload = async (fileToUpload?: File) => {
+        const targetFile = fileToUpload || file;
+        if (!targetFile) return;
         setUploading(true);
 
         try {
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', targetFile);
             formData.append('fileType', fileType);
 
             const res = await fetch('/api/user/files', {
@@ -141,7 +151,7 @@ export default function FileUploader({ onUploadComplete, userId }: FileUploaderP
                             <>
                                 <input
                                     type="file"
-                                    accept=".pdf,.csv,.xlsx"
+                                    accept=".pdf,.csv,.xlsx,.png,.jpg,.jpeg,image/*"
                                     onChange={handleFileSelect}
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                 />

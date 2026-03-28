@@ -1,5 +1,5 @@
--- Migration Script for TaxNaira
--- This script creates the necessary tables, indexes, and RLS policies for the TaxNaira application.
+-- Migration Script for AzaWise
+-- This script creates the necessary tables, indexes, and RLS policies for the AzaWise application.
 
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";

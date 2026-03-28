@@ -11,11 +11,23 @@ import { cn } from '@/lib/utils'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import OnboardingForm from '@/components/profile/onboarding-form'
 import { useQueryClient } from '@tanstack/react-query'
+import { BottomNav } from '@/components/layout/bottom-nav'
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({ 
+    children, 
+    user: initialUser, 
+    profile: initialProfile 
+}: { 
+    children: React.ReactNode,
+    user?: any,
+    profile?: any
+}) {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-    const { user, isLoading: loadingAuth } = useAuth()
+    
+    // Use the auth context but allow overrides from props
+    const { user: authUser, isLoading: loadingAuth } = useAuth()
+    const user = initialUser || authUser
 
     const { data: profile, isLoading: loadingProfile } = useQuery({
         queryKey: ['profile', user?.id],
@@ -28,6 +40,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             }
             return res.json()
         },
+        initialData: initialProfile,
         enabled: !!user?.id,
         retry: false
     })
@@ -45,12 +58,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     const queryClient = useQueryClient()
 
-    if (loadingAuth || (user && loadingProfile)) {
+    // If we have initial data from the server, we don't need to show a loader
+    const showLoader = !initialUser && (loadingAuth || (user && loadingProfile))
+
+    if (showLoader) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
                 <div className="text-center">
                     <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mx-auto" />
-                    <p className="mt-4 text-slate-500">Loading TaxNaira...</p>
+                    <p className="mt-4 text-slate-500 font-medium">Loading your workspace...</p>
                 </div>
             </div>
         )
@@ -60,8 +76,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         return (
             <OnboardingForm
                 userId={user.id}
-                onComplete={() => {
-                    queryClient.invalidateQueries({ queryKey: ['profile', user.id] })
+                onComplete={async () => {
+                    await queryClient.invalidateQueries({ queryKey: ['profile', user.id] })
+                    // Small delay to ensure DB consistency before UI refresh
+                    setTimeout(() => {
+                        window.location.reload()
+                    }, 500)
                 }}
             />
         )
@@ -84,7 +104,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <SheetContent side="left" className="p-0 border-none w-64">
                     <Sidebar
                         collapsed={false}
-                        onToggle={() => setMobileMenuOpen(false)}
+                        onToggle={() => mobileMenuOpen && setMobileMenuOpen(false)}
                         subscription={subscription}
                         isAdmin={profile?.role === 'admin'}
                     />
@@ -108,8 +128,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     />
                 </div>
 
-                <main className="p-2 sm:p-4 lg:p-6 pt-20 sm:pt-20 lg:pt-20">{children}</main>
+                <main className="p-2 sm:p-4 lg:p-6 pt-20 sm:pt-20 lg:pt-20 pb-24 lg:pb-6">{children}</main>
             </div>
+
+            {/* Bottom Navigation (Mobile) */}
+            <BottomNav />
         </div>
     )
 }

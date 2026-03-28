@@ -27,7 +27,7 @@ export const generateIncomeSummaryPDF = (data: ReportData) => {
 
   // Header
   doc.setFontSize(20);
-  doc.text("TaxNaira - " + title, 14, 22);
+  doc.text("AzaWise - " + title, 14, 22);
   doc.setFontSize(11);
   doc.text(`User: ${userName}`, 14, 30);
   doc.text(`Tax Year: ${taxYear}`, 14, 35);
@@ -56,7 +56,7 @@ export const generateIncomeSummaryPDF = (data: ReportData) => {
     body: tableData,
   });
 
-  doc.save(`TaxNaira_Income_Summary_${taxYear}.pdf`);
+  doc.save(`AzaWise_Income_Summary_${taxYear}.pdf`);
 };
 
 export const generateTaxComputationPDF = (
@@ -67,7 +67,7 @@ export const generateTaxComputationPDF = (
 
   // Header
   doc.setFontSize(20);
-  doc.text("TaxNaira - Tax Computation Report", 14, 22);
+  doc.text("AzaWise - Tax Computation Report", 14, 22);
   doc.setFontSize(11);
   doc.text(`User: ${userName}`, 14, 30);
   doc.text(`Tax Year: ${taxYear}`, 14, 35);
@@ -124,7 +124,7 @@ export const generateTaxComputationPDF = (
     });
   }
 
-  doc.save(`TaxNaira_Tax_Computation_${taxYear}.pdf`);
+  doc.save(`AzaWise_Tax_Computation_${taxYear}.pdf`);
 };
 
 export const generateExpenseAuditPDF = (data: ReportData) => {
@@ -133,7 +133,7 @@ export const generateExpenseAuditPDF = (data: ReportData) => {
 
   // Header
   doc.setFontSize(20);
-  doc.text("TaxNaira - " + title, 14, 22);
+  doc.text("AzaWise - " + title, 14, 22);
   doc.setFontSize(11);
   doc.text(`User: ${userName}`, 14, 30);
   doc.text(`Tax Year: ${taxYear}`, 14, 35);
@@ -162,5 +162,5 @@ export const generateExpenseAuditPDF = (data: ReportData) => {
     body: tableData,
   });
 
-  doc.save(`TaxNaira_Expense_Audit_${taxYear}.pdf`);
+  doc.save(`AzaWise_Expense_Audit_${taxYear}.pdf`);
 };

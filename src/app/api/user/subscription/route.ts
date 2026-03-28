@@ -19,10 +19,15 @@ export async function GET() {
       .eq("status", "active")
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      // If table doesn't exist or other query error, fallback to free plan
+      console.error("Subscription fetch error (fallback to free):", error.message);
+      return NextResponse.json({ plan: "free" });
+    }
 
     return NextResponse.json(data || { plan: "free" });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Subscription API caught error:", error.message);
+    return NextResponse.json({ plan: "free" });
   }
 }

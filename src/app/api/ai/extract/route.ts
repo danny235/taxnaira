@@ -42,7 +42,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Get file content — use cached parsed text if available (batch > 0)
+    // 2. Fetch user profile and check credits (needed early for context)
+    const { data: profile } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+
+    if (batchIndex === 0 && (profile?.credit_balance || 0) < 1) {
+      return NextResponse.json(
+        { error: "Insufficient credits for AI extraction. Please top up." },
+        { status: 402 },
+      );
+    }
+
+    const userContext: any = profile ? { ...profile } : {};
+    if (accountType) userContext.accountType = accountType;
+    if (importRules) userContext.importRules = importRules;
+
+    // 3. Get file content — use cached parsed text if available (batch > 0)
     let fileContent = "";
 
     if (batchIndex > 0 && fileRecord.parsed_content) {
@@ -99,6 +117,25 @@ export async function POST(req: NextRequest) {
           console.error("Excel Parsing Error:", excelError);
           fileContent = await fileBlob.text();
         }
+      } else if (
+        fileRecord.file_type?.startsWith("image/") ||
+        fileRecord.file_name.toLowerCase().endsWith(".png") ||
+        fileRecord.file_name.toLowerCase().endsWith(".jpg") ||
+        fileRecord.file_name.toLowerCase().endsWith(".jpeg")
+      ) {
+        try {
+          const { extractDataFromImage } = await import("@/lib/kimi");
+          const buffer = Buffer.from(await fileBlob.arrayBuffer());
+          const base64 = buffer.toString("base64");
+          const imageType = fileRecord.file_type || "image/png";
+
+          const imageTransactions = await extractDataFromImage(base64, imageType, userContext);
+          fileContent = JSON.stringify(imageTransactions);
+          console.log(`📸 Image screenshot parsed successfully (${imageTransactions.length} items found)`);
+        } catch (visionError) {
+          console.error("Vision Parsing Error:", visionError);
+          fileContent = "[]";
+        }
       } else {
         fileContent = await fileBlob.text();
       }
@@ -113,23 +150,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Fetch user profile and check credits (only on first batch)
-    const { data: profile } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", user.id)
-      .single();
 
-    if (batchIndex === 0 && (profile?.credit_balance || 0) < 1) {
-      return NextResponse.json(
-        { error: "Insufficient credits for AI extraction. Please top up." },
-        { status: 402 },
-      );
-    }
-
-    const userContext = profile ? { ...profile } : {};
-    if (accountType) userContext.accountType = accountType;
-    if (importRules) userContext.importRules = importRules;
 
     const contentToProcess = fileContent;
 

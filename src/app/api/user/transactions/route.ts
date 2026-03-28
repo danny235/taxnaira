@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     }
 
     // Add user_id to each transaction and map source_file_id to file_id
-    const records = transactions.map((tx: any) => {
+    const incomingRecords = transactions.map((tx: any) => {
       const { source_file_id, ai_confidence, ...rest } = tx;
       return {
         ...rest,
@@ -67,6 +67,27 @@ export async function POST(request: Request) {
         file_id: source_file_id || tx.file_id,
       };
     });
+
+    // Sanity check: Deduplicate against existing database records
+    // This prevents "Save" button double-clicks or overlapping extraction batches from creating bloat.
+    const { data: existingRecords } = await supabase
+      .from("transactions")
+      .select("date, amount, description")
+      .eq("user_id", user.id)
+      .in("date", incomingRecords.map(r => r.date));
+
+    const records = incomingRecords.filter(incoming => {
+      const isDuplicate = existingRecords?.some(existing => 
+        existing.date === incoming.date && 
+        Number(existing.amount).toFixed(2) === Number(incoming.amount).toFixed(2) &&
+        existing.description.trim().toLowerCase() === incoming.description.trim().toLowerCase()
+      );
+      return !isDuplicate;
+    });
+
+    if (records.length === 0) {
+      return NextResponse.json({ success: true, count: 0, message: "All transactions already exist" });
+    }
 
     const { data, error } = await supabase
       .from("transactions")

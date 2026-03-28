@@ -112,20 +112,23 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
     // Welcome screen
     if (step === 0) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-teal-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-linear-to-br from-emerald-50 via-slate-50 to-teal-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="w-full max-w-md text-center"
                 >
                     <div className="mb-6">
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto shadow-lg">
-                            <Sparkles className="w-10 h-10 text-white" />
+                        <div className="w-24 h-24 relative mx-auto group">
+                            <div className="absolute -inset-1 bg-linear-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+                            <div className="relative bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-xl border border-slate-100 dark:border-slate-800">
+                                <img src="/logo.png" alt="AzaWise Logo" className="w-full h-full object-contain" />
+                            </div>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Welcome to TaxNaira</h1>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Welcome to AzaWise</h1>
                     <p className="text-slate-500 dark:text-slate-400 mb-8 text-base leading-relaxed">
-                        Your AI-powered tax assistant for Nigeria. Let's set up your profile in just 4 quick steps so we can calculate your taxes accurately.
+                        Your intelligent partner for expense tracking and tax optimization in Nigeria. Let&apos;s personalize your experience in 4 quick steps.
                     </p>
 
                     <div className="grid grid-cols-2 gap-3 mb-8 text-left">
@@ -136,7 +139,7 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
                             { icon: Bitcoin, label: 'Crypto Tax Tracking', color: 'text-purple-500' },
                         ].map(({ icon: Icon, label, color }) => (
                             <div key={label} className="flex items-center gap-2 bg-white dark:bg-slate-800 rounded-xl p-3 shadow-sm border border-slate-100 dark:border-slate-700">
-                                <Icon className={`w-5 h-5 ${color} flex-shrink-0`} />
+                                <Icon className={`w-5 h-5 ${color} shrink-0`} />
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
                             </div>
                         ))}
@@ -158,7 +161,7 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
     // Completion screen
     if (done) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-linear-to-br from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -183,7 +186,7 @@ export default function OnboardingForm({ userId, onComplete }: OnboardingFormPro
     const StepIcon = currentStep.icon
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-teal-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-linear-to-br from-emerald-50 via-slate-50 to-teal-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
             <div className="w-full max-w-lg">
 
                 {/* Step indicators */}
