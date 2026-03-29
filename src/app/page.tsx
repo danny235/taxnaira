@@ -111,7 +111,7 @@ export default function LandingPage() {
             <ModeToggle />
           </div>
           <div className="hidden md:flex items-center gap-3">
-            <Link href="/dashboard/login">
+            <Link href="/login">
               <Button
                 variant="ghost"
                 size="sm"
@@ -120,7 +120,7 @@ export default function LandingPage() {
                 Log in
               </Button>
             </Link>
-            <Link href="/dashboard/register">
+            <Link href="/register">
               <Button size="sm" className="font-semibold shadow-sm">
                 Get Started
               </Button>
@@ -170,10 +170,10 @@ export default function LandingPage() {
               </Link>
               <hr className="border-border/50" />
               <div className="flex flex-col gap-3">
-                <Link href="/dashboard/login" className="w-full">
+                <Link href="/login" className="w-full">
                   <Button variant="outline" className="w-full justify-center">Log in</Button>
                 </Link>
-                <Link href="/dashboard/register" className="w-full">
+                <Link href="/register" className="w-full">
                   <Button className="w-full justify-center">Get Started</Button>
                 </Link>
               </div>
@@ -403,7 +403,7 @@ export default function LandingPage() {
               Join thousands of Nigerians who have switched to <span className="text-transparent bg-clip-text bg-linear-to-r from-emerald-500 to-teal-600 font-bold">AzaWise</span> for effortless financial control.
             </p>
             <div className="flex justify-center gap-4 pt-6">
-              <Link href="/dashboard/register">
+              <Link href="/register">
                 <Button size="lg" className="h-14 px-10 text-lg rounded-full shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
                   Create Free Account
                 </Button>
