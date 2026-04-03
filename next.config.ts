@@ -2,9 +2,7 @@ import type { NextConfig } from "next";
 
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
-  disable: false, // Enabled for development testing
-  register: true,
-  skipWaiting: true,
+  disable: false, // Enabled for testing
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
@@ -15,7 +13,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
 });
 
 const nextConfig: NextConfig = {
-  turbopack: {},
+  /* config options here */
 };
 
 export default withPWA(nextConfig);

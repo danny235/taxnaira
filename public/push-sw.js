@@ -1,3 +1,11 @@
+self.addEventListener("install", (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(clients.claim());
+});
+
 // Push Notification Event
 self.addEventListener('push', (event) => {
   if (!event.data) return;
