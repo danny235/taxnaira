@@ -1,5 +1,5 @@
 -- =============================================
--- Migration V7: Admin Visibility & RLS Recursion Fix
+-- Migration V7: Admin Visibility, Permissions & RLS Recursion Fix
 -- =============================================
 
 -- 1. Refactor is_admin to be non-recursive
@@ -20,11 +20,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- 2. Update Users Select Policy
--- We drop the existing policy and replace it with a cleaner check.
+-- 2. Update Users Policies
+-- We drop the existing select policy and add Missing UPDATE/DELETE policies
 DROP POLICY IF EXISTS "Admins can view all users" ON public.users;
 CREATE POLICY "Admins can view all users" ON public.users 
 FOR SELECT USING (
+  public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Admins can update all users" ON public.users;
+CREATE POLICY "Admins can update all users" ON public.users 
+FOR UPDATE USING (
+  public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Admins can delete all users" ON public.users;
+CREATE POLICY "Admins can delete all users" ON public.users 
+FOR DELETE USING (
   public.is_admin()
 );
 
