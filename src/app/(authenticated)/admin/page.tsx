@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
     Settings, Users, Calculator, Activity, Plus, Edit2, Trash2,
-    Loader2, Save, Shield
+    Loader2, Save, Shield, Bell, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -44,6 +44,13 @@ export default function AdminPage() {
     const [settings, setSettings] = useState<any>(null);
     const [auditLogs, setAuditLogs] = useState<any[]>([]);
     const [subscriptions, setSubscriptions] = useState<any[]>([]); // Optional if table exists
+    const [pushForm, setPushForm] = useState({
+        user_id: '',
+        title: '',
+        body: '',
+        url: ''
+    });
+    const [pushSending, setPushSending] = useState(false);
 
     const [settingsForm, setSettingsForm] = useState({
         exemption_threshold: 800000,
@@ -327,9 +334,13 @@ export default function AdminPage() {
                             <Calculator className="w-4 h-4" />
                             Tax Brackets
                         </TabsTrigger>
-                        <TabsTrigger value="settings" className="gap-2 whitespace-nowrap">
+                        <TabsTrigger value="settings" className="flex items-center gap-2">
                             <Settings className="w-4 h-4" />
-                            Settings
+                            <span className="hidden sm:inline">Settings</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="push" className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+                            <Bell className="w-4 h-4" />
+                            <span className="hidden sm:inline">Push Notifications</span>
                         </TabsTrigger>
                         <TabsTrigger value="users" className="flex items-center gap-2">
                             <Users className="w-4 h-4" /> Users
@@ -591,6 +602,9 @@ export default function AdminPage() {
                         </CardContent>
                     </Card>
                 </TabsContent>
+                <TabsContent value="chat" className="mt-6">
+                    <AdminChat />
+                </TabsContent>
 
                 <TabsContent value="logs" className="mt-6">
                     <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
@@ -621,6 +635,93 @@ export default function AdminPage() {
                                         ))}
                                     </TableBody>
                                 </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="push" className="mt-6">
+                    <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Bell className="w-5 h-5 text-orange-600" />
+                                Send Push Notification
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4 max-w-2xl">
+                                <div className="space-y-2">
+                                    <Label>Select User</Label>
+                                    <select 
+                                        className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                                        value={pushForm.user_id}
+                                        onChange={(e) => setPushForm({ ...pushForm, user_id: e.target.value })}
+                                    >
+                                        <option value="">Choose a user...</option>
+                                        <option value="all">Broadcast to All Users</option>
+                                        {users.map(u => (
+                                            <option key={u.id} value={u.id}>{u.full_name} ({u.email})</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Notification Title</Label>
+                                    <Input 
+                                        placeholder="e.g. Tax Deadline Approaching"
+                                        value={pushForm.title}
+                                        onChange={(e) => setPushForm({ ...pushForm, title: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Message Content</Label>
+                                    <textarea 
+                                        className="w-full min-h-[100px] p-3 rounded-md border border-input bg-background text-sm"
+                                        placeholder="Enter the push notification message..."
+                                        value={pushForm.body}
+                                        onChange={(e) => setPushForm({ ...pushForm, body: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Click Action URL (Optional)</Label>
+                                    <Input 
+                                        placeholder="e.g. /dashboard or /reports"
+                                        value={pushForm.url}
+                                        onChange={(e) => setPushForm({ ...pushForm, url: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="pt-4">
+                                    <Button 
+                                        className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                                        disabled={pushSending || !pushForm.user_id || !pushForm.title || !pushForm.body}
+                                        onClick={async () => {
+                                            setPushSending(true);
+                                            try {
+                                                const res = await fetch('/api/admin/push/send', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify(pushForm)
+                                                });
+                                                const result = await res.json();
+                                                if (result.success) {
+                                                    toast.success(`Sent! Delivered: ${result.delivered}, Failed: ${result.failed}`);
+                                                    setPushForm({ user_id: '', title: '', body: '', url: '' });
+                                                } else {
+                                                    throw new Error(result.error);
+                                                }
+                                            } catch (err: any) {
+                                                toast.error(err.message || "Failed to send notification");
+                                            } finally {
+                                                setPushSending(false);
+                                            }
+                                        }}
+                                    >
+                                        {pushSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                                        Send Notification Now
+                                    </Button>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

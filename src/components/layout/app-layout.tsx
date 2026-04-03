@@ -12,6 +12,8 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import OnboardingForm from '@/components/profile/onboarding-form'
 import { useQueryClient } from '@tanstack/react-query'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { SupportChat } from '@/components/support/support-chat'
+import { PushManager } from '@/components/notifications/push-manager'
 
 export function AppLayout({ 
     children, 
@@ -133,6 +135,12 @@ export function AppLayout({
 
             {/* Bottom Navigation (Mobile) */}
             <BottomNav />
+
+            {/* Global Support Chat */}
+            <SupportChat />
+
+            {/* Push Notifications Manager */}
+            <PushManager />
         </div>
     )
 }

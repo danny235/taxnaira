@@ -69,5 +69,19 @@ export function useChat(targetUserId?: string) {
     }
   };
 
-  return { messages, isLoading, sendMessage, refresh: fetchMessages };
+  const markAsRead = useCallback(async () => {
+    if (!targetUserId) return;
+    try {
+      const res = await fetch('/api/chat/messages', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: targetUserId }),
+      });
+      if (!res.ok) throw new Error('Failed to mark as read');
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
+  }, [targetUserId]);
+
+  return { messages, isLoading, sendMessage, markAsRead, refresh: fetchMessages };
 }

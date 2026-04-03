@@ -18,6 +18,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
+    icon: "/favicon.ico",
     apple: [
       { url: "/icon-192.png", sizes: "192x192" },
     ],

@@ -25,7 +25,9 @@ import {
     Camera,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/components/auth-provider'
+import { useQuery } from '@tanstack/react-query'
 
 // Map page names to paths for Next.js
 const pageToPath = (page: string) => {
@@ -58,7 +60,21 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarProps) {
     const pathname = usePathname()
-    const { signOut } = useAuth()
+    const { signOut, user } = useAuth()
+
+    const { data: conversations = [] } = useQuery({
+        queryKey: ['admin', 'conversations'],
+        queryFn: async () => {
+            if (!isAdmin) return []
+            const res = await fetch('/api/admin/chat/conversations')
+            if (!res.ok) return []
+            return res.json()
+        },
+        enabled: isAdmin,
+        refetchInterval: 10000 // Polling every 10s for new messages
+    })
+
+    const totalUnread = conversations.reduce((acc: number, conv: any) => acc + (conv.unreadCount || 0), 0)
 
     // Helper to check active state
     const isPageActive = (page: string) => {
@@ -142,8 +158,16 @@ export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarP
                             collapsed && 'justify-center'
                         )}
                     >
-                        <Shield className="w-5 h-5" />
-                        {!collapsed && <span className="font-medium">Admin Panel</span>}
+                        <Shield className="w-5 h-5 flex-shrink-0" />
+                        {!collapsed && <span className="font-medium flex-1">Admin Panel</span>}
+                        {totalUnread > 0 && (
+                            <Badge className={cn(
+                                "bg-purple-600 hover:bg-purple-700 text-white border-0",
+                                collapsed ? "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-[10px]" : "px-2"
+                            )}>
+                                {totalUnread}
+                            </Badge>
+                        )}
                     </Link>
                 )}
             </nav>

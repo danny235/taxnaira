@@ -31,7 +31,7 @@ export async function GET() {
     // Actually, we can just get the latest message from each user.
     const { data, error } = await supabase
       .from("chat_messages")
-      .select("user_id, content, created_at, is_read, users(full_name, email)")
+      .select("user_id, content, created_at, is_read, users!chat_messages_user_id_fkey(full_name, email)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
