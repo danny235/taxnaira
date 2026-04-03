@@ -333,7 +333,7 @@ export default function ReportsPage() {
                                     </div>
                                 </div>
                             </CardHeader>
-                            <CardContent className="h-[350px] p-0 flex flex-col md:flex-row items-center">
+                            <CardContent className="min-h-[500px] lg:h-[350px] p-0 flex flex-col md:flex-row items-center">
                                 <div className="flex-1 h-full w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
@@ -341,8 +341,8 @@ export default function ReportsPage() {
                                                 data={categoryData}
                                                 cx="50%"
                                                 cy="50%"
-                                                innerRadius={70}
-                                                outerRadius={100}
+                                                innerRadius="60%"
+                                                outerRadius="85%"
                                                 paddingAngle={8}
                                                 dataKey="value"
                                                 stroke="none"
@@ -367,7 +367,7 @@ export default function ReportsPage() {
                                         <div key={index} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 group hover:bg-slate-100 dark:hover:bg-slate-900 transition-all duration-300">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-2.5 h-2.5 rounded-full ring-4 ring-white dark:ring-slate-800" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                                                <span className="text-xs font-black text-slate-700 dark:text-slate-300 truncate max-w-[100px]">{item.name}</span>
+                                                <span className="text-xs font-black text-slate-700 dark:text-slate-300 truncate max-w-[140px] sm:max-w-[200px]">{item.name}</span>
                                             </div>
                                             <div className="text-xs font-bold text-slate-500">
                                                 {((item.value / metrics.total) * 100).toFixed(1)}%
