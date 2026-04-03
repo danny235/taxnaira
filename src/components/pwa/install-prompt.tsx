@@ -3,13 +3,18 @@
 import React, { useState, useEffect } from 'react'
 import { usePWA } from '@/hooks/use-pwa'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Share, PlusSquare, ArrowUp, Smartphone, Download } from 'lucide-react'
+import { X, Share, PlusSquare, ArrowUp, Smartphone, Download, MoreVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function InstallPrompt() {
     const { isStandalone, isIOS, canInstall, install } = usePWA()
     const [isVisible, setIsVisible] = useState(false)
     const [dismissedUntil, setDismissedUntil] = useState<number | null>(null)
+    const [isAndroid, setIsAndroid] = useState(false)
+
+    useEffect(() => {
+        setIsAndroid(/Android/i.test(navigator.userAgent))
+    }, [])
 
     useEffect(() => {
         // Load dismissal state
@@ -93,6 +98,14 @@ export function InstallPrompt() {
                                 <Download className="w-4 h-4 mr-2" />
                                 Install Now
                             </Button>
+                        ) : isAndroid ? (
+                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700">
+                                <p className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center flex-wrap gap-1">
+                                    Tap <MoreVertical className="w-3 h-3 inline" /> then 
+                                    <span className="font-bold">Install App</span> or 
+                                    <span className="font-bold">Add to Home Screen</span>
+                                </p>
+                            </div>
                         ) : (
                             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700">
                                 <p className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center flex-wrap gap-1">
