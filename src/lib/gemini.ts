@@ -21,8 +21,8 @@ const buildUserContextStr = (userContext?: any) => {
     - Sector/Business: ${isEmployee ? "Employee" : "Entrepreneur"}
     - State: ${userContext.state_of_residence || "Unknown"}
     - Receives Foreign Income: ${userContext.receives_foreign_income ? "Yes" : "No"}
-    - Account Type: ${userContext.accountType || "mixed"}
-      (If 'personal', treat most unknown expenses as personal. If 'business', treat operational expenses as business. If 'mixed', evaluate carefully).
+    - Account Type: ${userContext.accountType || "business"}
+      (If 'personal', treat most unknown expenses as personal. If 'business', treat operational expenses as business).
   `;
 
   if (userContext.importRules) {
@@ -162,7 +162,8 @@ export async function extractDataFromStatement(
     - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
     - amount: (number - Extract the value EXACTLY as written. Remove commas and currency symbols. Return as a plain number. NEVER round up or down. Double-check this against the source content for EVERY transaction.)
     - is_income: (boolean)
-    - category: (Categorize based on Nigerian tax logic. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
+    - sub_category: (string - A dynamic, highly specific 1-3 word label based on the description. E.g. "logistics", "groceries", "web_hosting", "commute".)
+    - account_name: (string - Extract the sender or beneficiary name if clearly present in the narration.)
     - reasoning: (string - why you chose this specific category)
 
     SELF-AUDIT RULE:
@@ -219,7 +220,8 @@ export async function extractDataFromPdfBuffer(
     - description: (string)
     - amount: (number, always positive)
     - is_income: (boolean)
-    - category: (Categorize based on Nigerian tax logic: salary, business revenue, freelance income, foreign income, capital gains, crypto sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal expense)
+    - sub_category: (string - A dynamic, highly specific 1-3 word label based on the description. E.g. "fuel", "data", "staff_salary", "bank_charges", "logistics".)
+    - account_name: (string - Extract the sender or beneficiary name if clearly present in the narration.)
     - reasoning: (string - why you chose this category)
   `;
 

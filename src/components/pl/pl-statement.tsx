@@ -68,7 +68,7 @@ export default function PLStatement({ data, periodLabel }: PLStatementProps) {
                     label="Total Deductible Expenses"
                     value={totalBusinessExpenses}
                     variant="total"
-                    tooltip="Only business-related deductible expenses are included. Mixed expenses use the deductible percentage."
+                    tooltip="Only business-related deductible expenses are included."
                 />
 
                 {/* NET */}

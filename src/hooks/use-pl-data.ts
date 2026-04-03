@@ -40,17 +40,12 @@ export const CATEGORY_LABELS: Record<string, string> = {
 export const getCategoryLabel = (cat: string) => CATEGORY_LABELS[cat] || cat;
 
 function getEffectiveAmount(tx: any) {
-  const base = tx.naira_value || tx.amount || 0;
-  if (tx.business_flag === "mixed" && !tx.is_income) {
-    return base * ((tx.deductible_percentage ?? 100) / 100);
-  }
-  return base;
+  return tx.naira_value || tx.amount || 0;
 }
 
 function shouldIncludeInPL(tx: any) {
-  // Include all transactions UNLESS explicitly flagged as 'personal'
-  // Unset business_flag → included by default (most users won't flag manually)
-  return tx.business_flag !== "personal";
+  // Only include transactions explicitly marked as 'business'
+  return tx.business_flag === "business";
 }
 
 export function usePLData(

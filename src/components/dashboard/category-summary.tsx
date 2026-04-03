@@ -13,26 +13,23 @@ interface CategorySummaryProps {
 
 const mainCategoryIcons: Record<string, any> = {
     Business: Briefcase,
-    Personal: User,
-    Mixed: Repeat
+    Personal: User
 }
 
 const mainCategoryColors: Record<string, string> = {
     Business: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20 shadow-blue-100',
-    Personal: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 shadow-emerald-100',
-    Mixed: 'text-purple-600 bg-purple-50 dark:bg-purple-900/20 shadow-purple-100'
+    Personal: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 shadow-emerald-100'
 }
 
 export default function CategorySummary({ transactions }: CategorySummaryProps) {
     const summary = useMemo(() => {
         const groups: Record<string, { total: number, subs: Record<string, number> }> = {
             Business: { total: 0, subs: {} },
-            Personal: { total: 0, subs: {} },
-            Mixed: { total: 0, subs: {} }
+            Personal: { total: 0, subs: {} }
         }
 
         transactions.forEach(tx => {
-            const main = tx.main_category || 'Mixed'
+            const main = tx.main_category || 'Business'
             const sub = tx.sub_category || 'other'
             const amount = Number(tx.naira_value || tx.amount || 0)
 

@@ -118,7 +118,7 @@ export default function Dashboard() {
 
             {/* Quick Actions */}
             <div className="flex flex-wrap gap-3">
-                <Link href="/snap">
+                <Link href="/upload?tab=snap">
                     <Button className="bg-emerald-600 hover:bg-emerald-700">
                         <Camera className="w-4 h-4 mr-2" />
                         Snap Receipt

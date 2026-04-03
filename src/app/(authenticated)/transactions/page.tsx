@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from 'sonner';
 import { useAuth } from '@/components/auth-provider';
+import { cn } from '@/lib/utils';
 
 export default function TransactionsPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -279,22 +280,52 @@ export default function TransactionsPage() {
             </div>
 
             {/* AI Transaction Assistant — inline tool panel */}
-            <TransactionAssistant
-                transactions={transactions}
-                onUpdate={fetchTransactions}
-                creditBalance={creditBalance}
-                onCreditUpdate={setCreditBalance}
-                userId={user?.id || ''}
-            />
+            <div className="py-2">
+                <TransactionAssistant
+                    transactions={transactions}
+                    onUpdate={fetchTransactions}
+                    creditBalance={creditBalance}
+                    onCreditUpdate={setCreditBalance}
+                    userId={user?.id || ''}
+                />
+            </div>
 
             {/* Transactions Table */}
-            {loading ? (
-                <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-                </div>
-            ) : (
-                <TransactionTable transactions={filtered} onUpdate={fetchTransactions} />
-            )}
+            <div className="relative">
+                {loading && transactions.length > 0 && (
+                    <div className="absolute top-0 left-0 right-0 z-10">
+                        <div className="h-1 w-full bg-emerald-100 dark:bg-emerald-950 overflow-hidden rounded-full">
+                            <div className="h-full bg-emerald-500 animate-progress w-full shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                        </div>
+                    </div>
+                )}
+                
+                {loading && transactions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                        <Loader2 className="w-10 h-10 animate-spin text-emerald-500 mb-4" />
+                        <p className="text-slate-500 font-medium">Fetching your records...</p>
+                    </div>
+                ) : (
+                    <div className={cn("transition-opacity duration-300", loading && transactions.length > 0 ? "opacity-60 pointer-events-none" : "opacity-100")}>
+                        <TransactionTable transactions={filtered} onUpdate={fetchTransactions} />
+                    </div>
+                )}
+            </div>
         </div>
     );
+}
+
+// Custom animation for the progress bar
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes progress {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .animate-progress {
+    animation: progress 1.5s infinite linear;
+  }
+`;
+if (typeof document !== 'undefined') {
+    document.head.appendChild(style);
 }

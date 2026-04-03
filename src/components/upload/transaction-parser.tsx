@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
     Select,
     SelectContent,
@@ -20,21 +21,26 @@ import { Loader2, Sparkles, CheckCircle, AlertTriangle, FileText, Search, Brain,
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import Link from 'next/link';
+
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 
 const CATEGORY_MAP: Record<string, string[]> = {
     Business: ['fuel', 'data', 'staff salary', 'bank_charges', 'tax_payments', 'miscellaneous'],
-    Mixed: ['fuel', 'phone', 'data', 'miscellaneous'],
     Personal: ['fuel', 'data', 'staff salary', 'personal_expense', 'miscellaneous']
 };
+
+const ALL_SUBCATEGORIES = Array.from(new Set([
+    ...CATEGORY_MAP.Business,
+    ...CATEGORY_MAP.Personal
+]));
 
 const categoryLabels: Record<string, string> = {
     // Main Categories
     Business: 'Business',
-    Mixed: 'Mixed',
     Personal: 'Personal',
     
     // Sub Categories
@@ -54,12 +60,14 @@ interface Transaction {
     description: string;
     amount: number;
     type: string; // 'credit' | 'debit'
+    is_income?: boolean;
     currency: string;
     category?: string;
     main_category?: string;
     sub_category?: string;
-    is_income?: boolean;
+    account_name?: string;
     ai_confidence?: number;
+    reasoning?: string;
     selected?: boolean;
 }
 
@@ -95,7 +103,9 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
     const [accountType, setAccountType] = useState('personal');
     const [importRules, setImportRules] = useState('');
     const [creditBalance, setCreditBalance] = useState<number | null>(null);
+    const [aiToggle, setAiToggle] = useState(false);
     const queryClient = useQueryClient();
+
     const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
@@ -123,7 +133,12 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                 
                 setSelected(current => {
                     const next = { ...current };
-                    toExtract.forEach(tx => { next[tx.tempId] = true; });
+                    toExtract.forEach(tx => { 
+                        // Auto-select if high confidence (>80%) or if confidence not provided (legacy)
+                        if (tx.ai_confidence === undefined || tx.ai_confidence > 0.8) {
+                            next[tx.tempId] = true; 
+                        }
+                    });
                     return next;
                 });
 
@@ -366,8 +381,9 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         setTransactions(prev => prev.map(tx => {
             if (tx.tempId === id) {
                 const updated = { ...tx, [field]: value };
-                // Reset sub-category if main category changes to something incompatible
-                if (field === 'main_category' && !CATEGORY_MAP[value].includes(tx.sub_category || '')) {
+                // Only reset sub-category if it's empty or doesn't exist
+                // This allows AI-generated sub-categories to persist when switching between Business/Personal
+                if (field === 'main_category' && !tx.sub_category) {
                     updated.sub_category = CATEGORY_MAP[value][0];
                 }
                 return updated;
@@ -411,27 +427,29 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
     const saveTransactions = async () => {
         setSaving(true);
-        const toSave = transactions.filter(tx => selected[tx.tempId]);
+        const records = transactions
+            .filter(tx => selected[tx.tempId])
+            .map(tx => {
+                const { tempId, account_name, reasoning, ai_confidence, selected, type, ...rest } = tx;
+                // Prepend account name to description if available
+                const finalDescription = account_name && tx.description && !tx.description.includes(account_name)
+                    ? `[${account_name}] ${tx.description}`
+                    : tx.description || account_name || 'No description';
+                
+                return {
+                    ...rest,
+                    description: finalDescription,
+                    source: 'upload',
+                    source_file_id: fileId,
+                    tax_year: new Date(tx.date).getFullYear(),
+                    manually_categorized: true,
+                    transaction_type: type || tx.type,
+                    category: tx.sub_category || tx.main_category,
+                    naira_value: tx.currency === 'NGN' || !tx.currency ? tx.amount : tx.amount
+                };
+            });
 
         try {
-            const records = toSave.map(tx => ({
-                // user_id handled by API
-                date: tx.date,
-                description: tx.description,
-                amount: tx.amount,
-                currency: tx.currency || 'NGN',
-                naira_value: tx.currency === 'NGN' || !tx.currency ? tx.amount : tx.amount,
-                main_category: tx.main_category,
-                sub_category: tx.sub_category,
-                category: tx.sub_category || tx.main_category, // Favor specific sub-category for legacy view
-                is_income: tx.is_income,
-                source_file_id: fileId,
-                source: 'upload',
-                manually_categorized: true,
-                ai_confidence: tx.ai_confidence,
-                tax_year: new Date().getFullYear()
-            }));
-
             const response = await fetch('/api/user/transactions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -463,6 +481,9 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                     <Sparkles className="w-5 h-5 text-emerald-500" />
                     AI Transaction Parser
                 </CardTitle>
+                <p className="text-xs text-slate-500 mt-1">
+                    Upload bank statements, receipts, and even <b>WhatsApp chat screenshots</b> to automatically extract transactions.
+                </p>
             </CardHeader>
             <CardContent className="space-y-4">
                 {error && (
@@ -480,30 +501,32 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                 <span className="font-bold">Pro tip:</span> Upload monthly statements instead of full-year exports for significantly faster AI processing.
                             </p>
                         </div>
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="text-sm font-medium mb-3">Account Type</h3>
-                                <RadioGroup
-                                    defaultValue="personal"
-                                    value={accountType}
+                            <div className="flex flex-col gap-4 p-4 mb-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                <Label className="text-sm font-bold flex items-center gap-2">
+                                    <Zap className="w-4 h-4 text-emerald-500" />
+                                    Import Context
+                                </Label>
+                                <RadioGroup 
+                                    defaultValue="business" 
+                                    value={accountType} 
                                     onValueChange={setAccountType}
-                                    className="flex flex-col sm:flex-row gap-4"
+                                    className="flex items-center gap-6"
                                 >
                                     <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="personal" id="personal" />
-                                        <Label htmlFor="personal" className="cursor-pointer">Personal</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="business" id="business" />
-                                        <Label htmlFor="business" className="cursor-pointer">Business</Label>
+                                        <Label htmlFor="business" className="cursor-pointer font-medium">Business Transactions</Label>
                                     </div>
                                     <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="mixed" id="mixed" />
-                                        <Label htmlFor="mixed" className="cursor-pointer">Mixed</Label>
+                                        <RadioGroupItem value="personal" id="personal" />
+                                        <Label htmlFor="personal" className="cursor-pointer font-medium">Personal Transactions</Label>
                                     </div>
                                 </RadioGroup>
+                                <p className="text-[10px] text-slate-500">
+                                    This tells the AI how to initially classify this batch of transactions.
+                                </p>
                             </div>
 
+                        <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="import-rules">Custom Import Rules (Optional)</Label>
                                 <p className="text-xs text-slate-500">
@@ -596,35 +619,64 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             )}
                         </AnimatePresence>
 
-                        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-2 text-sm">
-                                <span className="text-slate-500">Available Credits:</span>
-                                <span className={cn(
-                                    "font-bold px-2 py-0.5 rounded-full",
-                                    (creditBalance || 0) > 0 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                                )}>
-                                    {creditBalance !== null ? creditBalance : '...'}
-                                </span>
-                                {(creditBalance === 0) && (
-                                    <Link href="/subscription">
-                                        <Button variant="link" size="sm" className="text-emerald-600 h-auto p-0">Top up</Button>
-                                    </Link>
-                                )}
+                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-6">
+                            {/* Credits Display */}
+                            <div className="flex items-center gap-3">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Available Balance</span>
+                                    <div className="flex items-center gap-2">
+                                        <div className={cn(
+                                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold transition-all duration-300",
+                                            (creditBalance || 0) > 0 
+                                                ? "bg-emerald-50/50 border-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400" 
+                                                : "bg-red-50/50 border-red-100 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400"
+                                        )}>
+                                            <Zap className="w-3 h-3" />
+                                            <span>{creditBalance !== null ? creditBalance : '...'} Credits</span>
+                                        </div>
+                                        {(creditBalance === 0) && (
+                                            <Link href="/subscription">
+                                                <Button variant="ghost" size="sm" className="text-emerald-600 h-7 px-2 text-[10px] font-bold hover:bg-emerald-50">TOP UP</Button>
+                                            </Link>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
-                            <Button
-                                onClick={() => parseFile(0)}
-                                disabled={parsing || (creditBalance !== null && creditBalance < 1)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
-                            >
-                                {parsing ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        <span>Extracting...</span>
-                                    </>
-                                ) : (
-                                    'Extract Transactions'
-                                )}
-                            </Button>
+
+                            {/* Extraction Controls */}
+                            <div className="flex items-center gap-4 bg-slate-50/80 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-300 hover:shadow-md">
+                                <div className="flex items-center gap-3 px-2 border-r border-slate-200 dark:border-slate-700 mr-1">
+                                    <Switch 
+                                        id="ai-extract-toggle" 
+                                        checked={aiToggle} 
+                                        onCheckedChange={setAiToggle}
+                                        className="data-[state=checked]:bg-emerald-500 scale-90"
+                                    />
+                                    <Label htmlFor="ai-extract-toggle" className="text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer whitespace-nowrap">
+                                        Use AI <span className="text-[10px] text-slate-400 font-normal ml-1">(1 Credit)</span>
+                                    </Label>
+                                </div>
+                                <Button
+                                    onClick={() => parseFile(0)}
+                                    disabled={parsing || !aiToggle || (creditBalance !== null && creditBalance < 1)}
+                                    className={cn(
+                                        "h-10 px-6 rounded-lg font-bold text-xs transition-all duration-300 shadow-sm",
+                                        "bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-slate-200 dark:disabled:bg-slate-800"
+                                    )}
+                                >
+                                    {parsing ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                                            Reading data...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Brain className="w-3.5 h-3.5 mr-2" />
+                                            Analyze with AI
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 ) : (
@@ -666,7 +718,7 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                             <div className="space-y-1">
                                                 {Object.entries(subs).map(([sub, total]) => (
                                                     <div key={sub} className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-800 last:border-0">
-                                                        <span className="text-slate-600 dark:text-slate-400">{categoryLabels[sub] || sub}</span>
+                                                        <span className="text-slate-600 dark:text-slate-400">{(categoryLabels[sub] || sub).replace(/_/g, ' ')}</span>
                                                         <span className="font-medium">₦{total.toLocaleString()}</span>
                                                     </div>
                                                 ))}
@@ -691,10 +743,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                     <TableRow>
                                         <TableHead className="w-[50px]"></TableHead>
                                         <TableHead>Date</TableHead>
+                                        <TableHead>Account Name</TableHead>
                                         <TableHead>Description</TableHead>
                                         <TableHead>Amount</TableHead>
-                                        <TableHead>Category</TableHead>
                                         <TableHead>Sub Category</TableHead>
+                                        <TableHead>Taxable</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -719,41 +772,35 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                                 <TableCell className="text-sm whitespace-nowrap">
                                                     {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
                                                 </TableCell>
-                                                <TableCell className="text-sm font-medium min-w-[150px] max-w-[200px] truncate">
+                                                <TableCell className="text-[10px] font-medium text-slate-900 truncate max-w-[120px]" title={tx.account_name}>
+                                                    {tx.account_name || <span className="text-slate-300 italic">None</span>}
+                                                </TableCell>
+                                                <TableCell className="text-[10px] font-medium text-slate-600 truncate max-w-[150px]" title={tx.description}>
                                                     {tx.description}
                                                 </TableCell>
-                                                <TableCell className={cn(tx.is_income ? 'text-emerald-600' : 'text-red-600', "whitespace-nowrap")}>
-                                                    {tx.is_income ? '+' : '-'}₦{tx.amount?.toLocaleString()}
+                                                <TableCell className={cn(tx.is_income ? 'text-emerald-600' : 'text-red-600', "whitespace-nowrap font-bold")}>
+                                                    {tx.is_income ? '+' : '-'}{tx.currency || '₦'}{tx.amount?.toLocaleString()}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Input
+                                                        list="subcategory-suggestions"
+                                                        value={tx.sub_category || ''}
+                                                        onChange={(e) => handleCategoryChange(tx.tempId, 'sub_category', e.target.value)}
+                                                        className="h-8 text-[10px] w-[130px] bg-white dark:bg-slate-900 border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                                        placeholder="Custom category..."
+                                                    />
                                                 </TableCell>
                                                 <TableCell>
                                                     <Select
                                                         value={tx.main_category || 'Business'}
                                                         onValueChange={(val) => handleCategoryChange(tx.tempId, 'main_category', val)}
                                                     >
-                                                        <SelectTrigger className="h-8 text-[10px] w-[100px] bg-white dark:bg-slate-900">
-                                                            <SelectValue placeholder="Category" />
+                                                        <SelectTrigger className="h-8 text-[10px] w-[90px] bg-white dark:bg-slate-900">
+                                                            <SelectValue placeholder="Taxable" />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            <SelectItem value="Business">Business</SelectItem>
-                                                            <SelectItem value="Mixed">Mixed</SelectItem>
-                                                            <SelectItem value="Personal">Personal</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Select
-                                                        value={tx.sub_category || ''}
-                                                        onValueChange={(val) => handleCategoryChange(tx.tempId, 'sub_category', val)}
-                                                    >
-                                                        <SelectTrigger className="h-8 text-[10px] w-[110px] bg-white dark:bg-slate-900">
-                                                            <SelectValue placeholder="Sub-category" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {(CATEGORY_MAP[tx.main_category || 'Business'] || []).map(sub => (
-                                                                <SelectItem key={sub} value={sub}>
-                                                                    {categoryLabels[sub] || sub}
-                                                                </SelectItem>
-                                                            ))}
+                                                            <SelectItem value="Business">Yes</SelectItem>
+                                                            <SelectItem value="Personal">No</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                 </TableCell>
@@ -764,11 +811,17 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                             </Table>
                         </div>
 
-                        {transactions[0]?.category && (
+                        <div className="flex gap-3">
+                            {/* Datalist for subcategory suggestions */}
+                            <datalist id="subcategory-suggestions">
+                                {ALL_SUBCATEGORIES.map(sub => (
+                                    <option key={sub} value={sub}>{categoryLabels[sub] || sub}</option>
+                                ))}
+                            </datalist>
                             <Button
                                 onClick={saveTransactions}
                                 disabled={saving || selectedCount === 0}
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-lg shadow-emerald-500/20"
                             >
                                 {saving ? (
                                     <>
@@ -778,11 +831,11 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                 ) : (
                                     <>
                                         <CheckCircle className="w-4 h-4 mr-2" />
-                                        Save {selectedCount} Transactions
+                                        Confirm & Save {selectedCount} Transactions
                                     </>
                                 )}
                             </Button>
-                        )}
+                        </div>
                     </>
                 )}
                 {/* Continue Processing Banner — always visible when more batches remain */}

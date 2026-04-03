@@ -20,6 +20,7 @@ import {
     ChevronLeft,
     ChevronRight,
     TrendingUp,
+    BarChart3,
     X,
     Camera,
 } from 'lucide-react'
@@ -35,13 +36,11 @@ const pageToPath = (page: string) => {
 
 const navigation = [
     { name: 'Dashboard', icon: LayoutDashboard, page: 'Dashboard' },
-    { name: 'Snap Receipt', icon: Camera, page: 'Snap' },
-    { name: 'Upload', icon: Upload, page: 'Upload' },
+    { name: 'Document Center', icon: Upload, page: 'Upload' },
     { name: 'Transactions', icon: Receipt, page: 'Transactions' },
+    { name: 'Reports', icon: BarChart3, page: 'Reports', pro: true },
     { name: 'Profit & Loss', icon: TrendingUp, page: 'ProfitLoss' },
     { name: 'Tax Calculator', icon: Calculator, page: 'calculator' },
-    { name: 'Reports', icon: FileText, page: 'Reports', pro: true },
-    { name: 'Documents', icon: FolderOpen, page: 'Documents' },
 ]
 
 const bottomNav = [

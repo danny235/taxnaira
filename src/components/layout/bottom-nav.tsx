@@ -18,7 +18,7 @@ import { motion } from 'framer-motion'
 const navItems = [
     { label: 'Home', icon: LayoutDashboard, href: '/dashboard' },
     { label: 'Activity', icon: ArrowRightLeft, href: '/transactions' },
-    { label: 'Snap', icon: Camera, href: '/snap', primary: true },
+    { label: 'Scan', icon: Camera, href: '/upload?tab=snap', primary: true },
     { label: 'Reports', icon: BarChart3, href: '/reports' },
     { label: 'More', icon: Settings, href: '/settings' }
 ]

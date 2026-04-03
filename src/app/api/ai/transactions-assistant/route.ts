@@ -186,7 +186,7 @@ INCOME CATEGORIES (is_income=true):
 5. Capital Gains  6. Crypto Sale  7. Other Income
 
 CATEGORY VALUE MAPPING (use these exact values in "category" field):
-Rent=rent, Utilities=utilities, Food=food, Transportation=transportation, Business Expenses=business_expenses,
+Rent=rent, Utilities=utilities, Food=food, Transportation=transportation, Business Expenses=business expenses,
 Subscriptions=subscriptions, Professional Fees=professional_fees, Maintenance=maintenance, Health=health,
 Donations=donations, Tax Payments=tax_payments, Bank Charges=bank_charges, Pension Contributions=pension_contributions,
 NHF Contributions=nhf_contributions, Insurance=insurance, Transfers=transfers, Crypto Purchase=crypto_purchase,

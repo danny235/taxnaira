@@ -226,9 +226,9 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Date</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Description</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Amount</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Tax Status</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Taxable</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Category</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Source</TableHead>
+                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Sub Category</TableHead>
                             <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider w-[80px] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -262,11 +262,9 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                     <Badge className={cn(
                                         "text-[10px] uppercase tracking-wider font-bold h-5 py-0 px-2 border-0 shadow-sm", 
                                         tx.main_category === 'Business' ? "bg-emerald-600 text-white hover:bg-emerald-600" :
-                                        tx.main_category === 'Mixed' ? "bg-amber-500 text-white hover:bg-amber-500" :
-                                        tx.main_category === 'Personal' ? "bg-blue-500 text-white hover:bg-blue-500" :
-                                        "bg-slate-400 text-white hover:bg-slate-400"
+                                        "bg-blue-500 text-white hover:bg-blue-500"
                                     )}>
-                                        {tx.main_category || 'Business'}
+                                        {tx.main_category === 'Business' ? 'Yes' : 'No'}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
@@ -295,23 +293,9 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    <div className="flex flex-col gap-1">
-                                        {tx.manually_categorized ? (
-                                            <div className="flex items-center gap-1.5 text-slate-500">
-                                                <Check className="w-3 h-3 text-emerald-500" />
-                                                <span className="text-[10px] font-medium">Verified</span>
-                                            </div>
-                                        ) : tx.ai_confidence ? (
-                                            <div className="flex items-center gap-1.5 text-slate-500">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                <span className="text-[10px] font-medium">AI ({Math.round(tx.ai_confidence * 100)}%)</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 text-slate-400 italic">
-                                                <span className="text-[10px]">Direct Entry</span>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <span className="text-[10px] font-medium text-slate-500">
+                                        {tx.sub_category?.replace(/_/g, ' ') || '-'}
+                                    </span>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1">
@@ -339,7 +323,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-slate-400">
+                                <TableCell colSpan={8} className="text-center py-8 text-slate-400">
                                     No transactions found
                                 </TableCell>
                             </TableRow>

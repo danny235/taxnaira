@@ -48,7 +48,7 @@ function EditRow({ tx, onSave, selected, onToggle }: EditRowProps) {
         }
     };
 
-    const flagColor = flag === 'business' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : flag === 'mixed' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400';
+    const flagColor = flag === 'business' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400';
 
     return (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 px-2 transition-colors">
@@ -85,20 +85,9 @@ function EditRow({ tx, onSave, selected, onToggle }: EditRowProps) {
                             <SelectContent>
                                 <SelectItem value="business">Business</SelectItem>
                                 <SelectItem value="personal">Personal</SelectItem>
-                                <SelectItem value="mixed">Mixed</SelectItem>
                             </SelectContent>
                         </Select>
-                        {flag === 'mixed' && !tx.is_income && (
-                            <Input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={pct}
-                                onChange={e => setPct(Number(e.target.value))}
-                                className="h-8 w-16 text-xs"
-                                placeholder="%"
-                            />
-                        )}
+                        {/* Deductible Toggle Only */}
                         {!tx.is_income && (
                             <div className="flex items-center gap-2 text-[11px] text-slate-500">
                                 <span>Deduct</span>
@@ -127,8 +116,7 @@ function EditRow({ tx, onSave, selected, onToggle }: EditRowProps) {
 const FLAG_FILTERS = [
     { label: 'All', value: 'all' },
     { label: 'Personal', value: 'personal' },
-    { label: 'Business', value: 'business' },
-    { label: 'Mixed', value: 'mixed' },
+    { label: 'Business', value: 'business' }
 ];
 
 interface PLTransactionEditorProps {
@@ -197,7 +185,7 @@ export default function PLTransactionEditor({ transactions, onUpdate }: PLTransa
             <CardHeader className="pb-2">
                 <CardTitle className="text-base font-semibold">Reclassify Transactions</CardTitle>
                 <p className="text-xs text-slate-400">
-                    Toggle business/personal or adjust deductible % for mixed expenses. Only <span className="font-semibold text-emerald-600">Business</span> or <span className="font-semibold text-amber-600">Mixed</span> transactions appear in the P&L.
+                    Toggle business/personal flags. Only <span className="font-semibold text-emerald-600">Business</span> transactions appear in the P&L.
                 </p>
                 {personalCount > 0 && (
                     <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
@@ -281,14 +269,6 @@ export default function PLTransactionEditor({ transactions, onUpdate }: PLTransa
                                         onClick={() => handleBatchReclassify('business')}
                                     >
                                         → Business
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-7 text-xs text-amber-400 hover:text-amber-300 hover:bg-amber-900/30"
-                                        onClick={() => handleBatchReclassify('mixed')}
-                                    >
-                                        → Mixed
                                     </Button>
                                     <Button
                                         size="sm"

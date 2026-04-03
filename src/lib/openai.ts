@@ -43,6 +43,7 @@ export async function classifyTransaction(description: string) {
     You are a Nigerian tax expert assistant. Your task is to categorize a financial transaction based on its description.
     The categories are:
     - 'salary', 'business_revenue', 'freelance_income', 'foreign_income', 'capital_gains', 'crypto_sale', 'subscriptions', 'professional_fees', 'maintenance', 'health', 'donations', 'tax_payments', 'bank_charges', 'expense', 'personal_expense', 'pension_contributions', 'nhf_contributions'
+    - sub_category: (string - A dynamic, highly specific 1-3 word category name derived from the narration. E.g. "logistics", "groceries", "web_hosting", "commute".)
 
     Transaction Description: "${description}"
 
@@ -86,12 +87,13 @@ export async function classifyTransaction(description: string) {
 export async function extractDataFromStatement(
   fileData: string,
   fileType: string,
+  userContext?: any,
 ) {
   // Use a slightly larger chunk size for 4o-mini to reduce requests
   const CHUNK_SIZE = 30000;
 
   if (fileData.length <= CHUNK_SIZE) {
-    return await processChunk(fileData, fileType);
+    return await processChunk(fileData, fileType, userContext);
   }
 
   console.log(
@@ -108,7 +110,7 @@ export async function extractDataFromStatement(
   for (let i = 0; i < chunks.length; i++) {
     console.log(`Processing chunk ${i + 1}/${chunks.length}...`);
     try {
-      const transactions = await processChunk(chunks[i], fileType);
+      const transactions = await processChunk(chunks[i], fileType, userContext);
       allTransactions = [...allTransactions, ...transactions];
 
       // Small pause between chunks to avoid TPM limits
@@ -132,16 +134,25 @@ export async function extractDataFromStatement(
 /**
  * Internal helper to process a single chunk of data
  */
-async function processChunk(chunkData: string, fileType: string) {
+async function processChunk(chunkData: string, fileType: string, userContext?: any) {
+  const contextPlan = userContext?.accountType 
+    ? `The user is importing ${userContext.accountType} transactions. Default all transactions to this type unless clearly otherwise.` 
+    : "";
+
   const prompt = `
     Analyze this part of a ${fileType} bank statement or financial document content.
+    ${contextPlan}
+    
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format)
     - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
     - amount: (number - Extract the value EXACTLY as written. NEVER round. 100.99 must stay 100.99. Return as a clean number without commas or currency symbols. Verified against original line.)
     - is_income: (boolean)
-    - category: (Use categories: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, subscriptions, professional_fees, maintenance, health, donations, tax_payments, bank_charges, expense, personal_expense)
+    - main_category: (Choices: Business, Personal.)
+    - sub_category: (string - A dynamic, highly specific 1-3 word label based on the description. E.g., "fuel", "data", "staff_salary", "bank_charges", "logistics".)
+    - account_name: (string - Extract the sender or beneficiary name if clearly present in the narration.)
+    - ai_confidence: (number - A score from 0.0 to 1.0 based on how sure you are of the categorization.)
 
     SELF-AUDIT RULE:
     Double-check every extracted amount against the source text before returning the JSON. Precision is 100% mandatory.

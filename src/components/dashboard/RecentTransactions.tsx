@@ -79,12 +79,12 @@ export default function RecentTransactions({ transactions = [] }: RecentTransact
                           {tx.main_category}
                         </Badge>
                         <Badge variant="secondary" className="text-[10px] h-4 leading-none py-0 px-1">
-                          {tx.sub_category}
+                          {tx.sub_category?.replace(/_/g, ' ')}
                         </Badge>
                       </div>
                     ) : (
                       <Badge variant="outline" className="text-[10px] h-4 leading-none py-0 px-1">
-                        {categoryLabels[tx.category] || tx.category || 'Uncategorized'}
+                        {categoryLabels[tx.category] || tx.category?.replace(/_/g, ' ') || 'Uncategorized'}
                       </Badge>
                     )}
                   </div>

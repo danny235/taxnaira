@@ -39,7 +39,7 @@ function InfoTip({ text }: { text: string }) {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer flex-shrink-0" />
+          <Info className="w-3.5 h-3.5 text-slate-400 cursor-pointer shrink-0" />
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs">{text}</TooltipContent>
       </Tooltip>
@@ -118,13 +118,12 @@ export default function TaxSavingsPlanner({
           .filter(
             (t) =>
               !t.is_income &&
-              (t.business_flag === 'business' || t.business_flag === 'mixed') &&
+              t.business_flag === 'business' &&
               t.deductible_flag
           )
           .reduce((s, t) => {
             const base = t.naira_value || t.amount || 0
-            const pct = t.business_flag === 'mixed' ? (t.deductible_percentage ?? 100) / 100 : 1
-            return s + base * pct
+            return s + base
           }, 0)
         : 0
 
@@ -202,7 +201,7 @@ export default function TaxSavingsPlanner({
         {/* Results */}
         {noTaxDue ? (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <p className="text-sm text-emerald-700 dark:text-emerald-400">
               You have no outstanding estimated tax liability.
             </p>
@@ -260,7 +259,7 @@ export default function TaxSavingsPlanner({
         {/* Alert if high tax */}
         {estimates.annualTax > 0 && estimates.monthlyReserve > 200000 && (
           <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
-            <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+            <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
             <p className="text-xs text-amber-700 dark:text-amber-400">
               Your monthly reserve is significant. Consider spreading payments evenly or consulting a tax advisor.
             </p>
@@ -268,7 +267,7 @@ export default function TaxSavingsPlanner({
         )}
 
         {/* Disclaimer */}
-        <p className="text-xs text-slate-400 dark:text-slate-500 pt-1 leading-relaxed border-t border-slate-100 dark:border-slate-700 pt-3">
+        <p className="text-xs text-slate-400 dark:text-slate-500 pt-3 leading-relaxed border-t border-slate-100 dark:border-slate-700">
           This is an estimate based on recorded income and deductible expenses. Actual tax payable depends on official
           filing and tax authority assessment.
         </p>

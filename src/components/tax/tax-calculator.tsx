@@ -62,23 +62,18 @@ export default function TaxCalculator({ userId, transactions = [], taxBrackets =
             .filter(t => t.category === 'nhf_contributions')
             .reduce((sum, t) => sum + (t.naira_value || t.amount || 0), 0);
 
-        // For self-employed/business_owner: deduct ALL expenses (not just business_expenses category)
-        // Exclude explicitly personal-flagged transactions
+        // For self-employed/business_owner: deduct ONLY business-flagged expenses
         const deductibleExpenses = expenseTransactions
             .filter(t => {
                 // Exclude personal-flagged expenses and non-deductible categories
                 if (t.business_flag === 'personal') return false;
                 // Exclude personal expense category
                 if (t.category === 'personal_expense') return false;
-                // For mixed, apply deductible percentage
-                return true;
+                // Only consider Business flagged transactions
+                return t.business_flag === 'business';
             })
             .reduce((sum, t) => {
-                const amount = t.naira_value || t.amount || 0;
-                if (t.business_flag === 'mixed') {
-                    return sum + (amount * ((t.deductible_percentage ?? 100) / 100));
-                }
-                return sum + amount;
+                return sum + Math.abs(t.naira_value || t.amount || 0);
             }, 0);
 
         const exemptionThreshold = settings?.exemption_threshold || 800000;

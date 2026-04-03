@@ -67,11 +67,13 @@ export async function extractDataFromStatement(
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
     - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
-    - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand, DO NOT add "expert" polish. It must be a 1:1 copy of the narration.)
-    - amount: (number - Extract the value EXACTLY as written. Remove commas and currency symbols. Return as a plain number. NEVER round up or down. 100.45 must stay 100.45, not 100.5. Double-check this against the source content for EVERY transaction.)
-    - is_income: (boolean)
-    - category: (Categorize based on Nigerian tax logic. Choices: salary, business_revenue, freelance_income, foreign_income, capital_gains, crypto_sale, rent, utilities, transportation, food_and_travel, maintenance, health, donations, professional_fees, subscriptions, tax_payments, bank_charges, business_expense, personal_expense)
-    - reasoning: (string - why you chose this specific category)
+    - description: (string - Extract the description EXACTLY as it appears in the source file.)
+    - amount: (number - Extract the value EXACTLY as written. Remove commas/symbols.)
+    - is income: (boolean)
+    - main category: (Choices: Business, Personal. Use Account Type from context to bias this.)
+    - sub category: (Specific category name based on Main Category. Examples: salary, rent, utilities, fuel, staff salary, data, bank charges, personal expense, tax payments, business expense.)
+    - ai confidence: (number - A score from 0.0 to 1.0 based on how sure you are of the categorization.)
+    - reasoning: (string - why you chose this specific categorization)
 
     SELF-AUDIT RULE:
     Before finalizing the JSON, you MUST re-read the input text and verify that every 'amount' and 'date' in your output matches the original document precisely.
@@ -142,14 +144,17 @@ export async function classifyTransaction(
     ${contextStr}
 
     CATEGORIES & GUIDELINES:
-    Main Categories: 'Business', 'Mixed', 'Personal'.
+    Main Categories: 'Business', 'Personal'.
     
-    Sub-Categories (Examples): 
-    - Business: 'fuel', 'data', 'staff salary', 'rent', 'utilities', 'professional_fees', 'marketing', 'inventory'
-    - Mixed: 'fuel', 'phone', 'data', 'transportation'
-    - Personal: 'fuel', 'data', 'staff salary', 'food', 'rent', 'health', 'donations', 'subscriptions'
-
-    Instructions: Choose the CORRECT Main Category and the MOST specific Sub-Category possible.
+    Sub-Category Generation:
+    The "sub category" must be a concise (1-3 words), descriptive label derived directly from the transaction narration. Do NOT use generic labels like "miscellaneous" if you can be more specific. 
+    Examples:
+    - "POS Purchase: JUMIA" -> "ecommerce"
+    - "Transfer to Glo" -> "data"
+    - "Cinema/Lifestyle" -> "entertainment"
+    - "Office Rent October" -> "rent"
+    
+    Instructions: Choose 'Business' or 'Personal' for the Main Category, and then generate a highly specific, clean Sub-Category from the description.
 
     Extract the transaction description EXACTLY as it appears in the input. DO NOT rewrite or refine it.
 
@@ -192,7 +197,7 @@ export async function classifyTransaction(
       baseUrl: "https://api.moonshot.ai/v1",
     });
     return {
-      main_category: "Mixed",
+      main_category: "Personal",
       sub_category: "miscellaneous",
       confidence: 0,
       reasoning: "Error during Kimi classification",
@@ -211,27 +216,29 @@ export async function extractDataFromImage(
   const contextStr = buildUserContextStr(userContext);
 
   const prompt = `
-    You are a professional Nigerian tax data extractor. Analyze this bank transaction screenshot or receipt image.
+    You are a professional Nigerian tax data extractor. Analyze this bank transaction screenshot, receipt image, or WhatsApp chat screenshot.
     ${contextStr}
 
+    SPECIAL INSTRUCTION FOR WHATSAPP CHATS:
+    - If this is a WhatsApp screenshot, look for messages containing amounts (₦, $, etc.), "sent", "paid", or "receipt".
+    - Extract the participant name as the 'account name' if they are the recipient or sender.
+    - Use the message timestamp for the 'date' if the document date is missing.
+
     Extract every discernible transaction and return them as a JSON object with a key "transactions" (array of objects).
-    Each transaction object must have:
+    Each object must have:
     - date: (ISO 8601 format YYYY-MM-DD. If only day/month provided, use year ${new Date().getFullYear()})
-    - description: (string - Extract the narration/description EXACTLY as it appears.)
-    - amount: (number - Plain number, no commas or symbols. 2,500.00 -> 2500)
-    - is_income: (boolean - true if it's a credit/inflow, false if debit/outflow)
-    - main_category: (Business, Mixed, or Personal)
-    - sub_category: (Choose based on main_category: 
-        Business: fuel, data, staff salary; 
-        Mixed: fuel, phone, data; 
-        Personal: fuel, data, staff salary)
+    - description: (string - Extract the narration/description EXACTLY as it appears. For WhatsApp, use the message text.)
+    - amount: (number - Extract numerical value ONLY)
+    - is_income: (boolean)
+    - main_category: (Business or Personal. Biased by user context.)
+    - sub_category: (Generate a specific 1-3 word label based on the description. E.g., "Web Hosting", "Office Supplies", "Lunch", "Commute".)
+    - account_name: (Extract the sender or beneficiary name. For WhatsApp, this is often the contact name.)
+    - ai_confidence: (number - Score from 0.0 to 1.0)
     - reasoning: (string - Short logic for your categorization)
 
     SELF-AUDIT:
     Verify the amount and date against the image. 
-    Strictly map "Transfer fee", "Stamp duty" to 'bank_charges' under 'Business'.
-    Strictly map "Uber", "Bolt", "Fuel", "Petrol" to 'fuel'.
-    If the transaction serves both personal and business needs (e.g., a multi-use phone or home office data), map it to 'Mixed'.
+    Strictly map "Transfer fee", "Stamp duty" to 'bank charges' under 'Business'.
 
     Return ONLY valid JSON. No markdown wrappers.
   `;

@@ -242,6 +242,7 @@ export async function POST(req: NextRequest) {
               chunkTransactions = await extractWithOpenAI(
                 chunkToProcess,
                 fileRecord.file_type,
+                userContext,
               );
             } catch (openAiError) {
               console.error(

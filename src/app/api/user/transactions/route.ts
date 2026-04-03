@@ -60,10 +60,11 @@ export async function POST(request: Request) {
 
     // Add user_id to each transaction and map source_file_id to file_id
     const incomingRecords = transactions.map((tx: any) => {
-      const { source_file_id, ai_confidence, ...rest } = tx;
+      const { source_file_id, ai_confidence, reasoning, selected, type, ...rest } = tx;
       return {
         ...rest,
         user_id: user.id,
+        transaction_type: type || tx.transaction_type,
         file_id: source_file_id || tx.file_id,
       };
     });

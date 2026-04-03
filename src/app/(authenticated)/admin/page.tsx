@@ -17,6 +17,10 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 
+import { MessageSquare } from 'lucide-react';
+import AdminChat from '@/components/admin/admin-chat';
+
+
 import { useAuth } from '@/components/auth-provider';
 
 export default function AdminPage() {
@@ -293,7 +297,7 @@ export default function AdminPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm p-4">
                     <p className="text-sm text-slate-500">Total Users</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">{userStats.total}</p>
@@ -317,32 +321,36 @@ export default function AdminPage() {
             </div>
 
             <Tabs defaultValue="brackets">
-                <TabsList>
-                    <TabsTrigger value="brackets" className="gap-2">
-                        <Calculator className="w-4 h-4" />
-                        Tax Brackets
-                    </TabsTrigger>
-                    <TabsTrigger value="settings" className="gap-2">
-                        <Settings className="w-4 h-4" />
-                        Settings
-                    </TabsTrigger>
-                    <TabsTrigger value="users" className="gap-2">
-                        <Users className="w-4 h-4" />
-                        Users
-                    </TabsTrigger>
-                    <TabsTrigger value="logs" className="gap-2">
-                        <Activity className="w-4 h-4" />
-                        Audit Logs
-                    </TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto pb-2 -mx-1 px-1">
+                    <TabsList className="w-fit min-w-full inline-flex">
+                        <TabsTrigger value="brackets" className="gap-2 whitespace-nowrap">
+                            <Calculator className="w-4 h-4" />
+                            Tax Brackets
+                        </TabsTrigger>
+                        <TabsTrigger value="settings" className="gap-2 whitespace-nowrap">
+                            <Settings className="w-4 h-4" />
+                            Settings
+                        </TabsTrigger>
+                        <TabsTrigger value="users" className="flex items-center gap-2">
+                            <Users className="w-4 h-4" /> Users
+                        </TabsTrigger>
+                        <TabsTrigger value="chat" className="flex items-center gap-2">
+                            <MessageSquare className="w-4 h-4" /> Support Chat
+                        </TabsTrigger>
+                        <TabsTrigger value="logs" className="gap-2 whitespace-nowrap">
+                            <Activity className="w-4 h-4" />
+                            Audit Logs
+                        </TabsTrigger>
+                    </TabsList>
+                </div>
 
                 <TabsContent value="brackets" className="mt-6">
                     <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
-                        <CardHeader className="flex-row items-center justify-between">
+                        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <CardTitle className="text-lg">Tax Brackets ({currentYear})</CardTitle>
                             <Dialog open={showBracketDialog} onOpenChange={setShowBracketDialog}>
                                 <DialogTrigger asChild>
-                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
                                         <Plus className="w-4 h-4 mr-2" />
                                         Add Bracket
                                     </Button>
@@ -352,7 +360,7 @@ export default function AdminPage() {
                                         <DialogTitle>{editingBracket ? 'Edit' : 'Add'} Tax Bracket</DialogTitle>
                                     </DialogHeader>
                                     <div className="space-y-4 pt-4">
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                             <div>
                                                 <Label>Min Amount (₦)</Label>
                                                 <Input
@@ -398,39 +406,41 @@ export default function AdminPage() {
                             </Dialog>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Range</TableHead>
-                                        <TableHead>Rate</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead className="w-[100px]">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {taxBrackets.sort((a, b) => a.min_amount - b.min_amount).map((bracket) => (
-                                        <TableRow key={bracket.id}>
-                                            <TableCell>
-                                                ₦{bracket.min_amount.toLocaleString()} - {bracket.max_amount === -1 ? '∞' : `₦${bracket.max_amount.toLocaleString()}`}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline">{bracket.rate}%</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-slate-500">{bracket.description || '-'}</TableCell>
-                                            <TableCell>
-                                                <div className="flex gap-1">
-                                                    <Button variant="ghost" size="icon" onClick={() => openEditBracket(bracket)}>
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteBracket(bracket.id)}>
-                                                        <Trash2 className="w-4 h-4 text-red-500" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="whitespace-nowrap">Range</TableHead>
+                                            <TableHead className="whitespace-nowrap">Rate</TableHead>
+                                            <TableHead className="whitespace-nowrap">Description</TableHead>
+                                            <TableHead className="w-[100px] whitespace-nowrap text-right">Actions</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {taxBrackets.sort((a, b) => a.min_amount - b.min_amount).map((bracket) => (
+                                            <TableRow key={bracket.id}>
+                                                <TableCell className="whitespace-nowrap">
+                                                    ₦{bracket.min_amount.toLocaleString()} - {bracket.max_amount === -1 ? '∞' : `₦${bracket.max_amount.toLocaleString()}`}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline">{bracket.rate}%</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-slate-500 max-w-[200px] truncate">{bracket.description || '-'}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-1">
+                                                        <Button variant="ghost" size="icon" onClick={() => openEditBracket(bracket)}>
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteBracket(bracket.id)}>
+                                                            <Trash2 className="w-4 h-4 text-red-500" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -441,7 +451,7 @@ export default function AdminPage() {
                             <CardTitle className="text-lg">Tax Settings ({currentYear})</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                 <div>
                                     <Label>Exemption Threshold (₦)</Label>
                                     <Input
@@ -452,6 +462,7 @@ export default function AdminPage() {
                                     />
                                     <p className="text-xs text-slate-500 mt-1">Income below this is tax-free</p>
                                 </div>
+
                                 <div>
                                     <Label>Pension Deduction Rate (%)</Label>
                                     <Input
@@ -480,7 +491,7 @@ export default function AdminPage() {
                                     />
                                 </div>
                             </div>
-                            <Button onClick={handleSaveSettings} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                            <Button onClick={handleSaveSettings} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto">
                                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                                 Save Settings
                             </Button>
@@ -490,10 +501,10 @@ export default function AdminPage() {
 
                 <TabsContent value="users" className="mt-6">
                     <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm">
-                        <CardHeader className="flex-row items-center justify-between">
+                        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <CardTitle className="text-lg">Users</CardTitle>
                             <Dialog open={showUserDialog} onOpenChange={setShowUserDialog}>
-                                <DialogContent>
+                                <DialogContent className="sm:max-w-[425px]">
                                     <DialogHeader>
                                         <DialogTitle>Manage User: {selectedUser?.full_name || selectedUser?.email}</DialogTitle>
                                     </DialogHeader>
@@ -530,51 +541,53 @@ export default function AdminPage() {
                             </Dialog>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>User / Email</TableHead>
-                                        <TableHead>Role</TableHead>
-                                        <TableHead>Credits</TableHead>
-                                        <TableHead>Joined</TableHead>
-                                        <TableHead className="w-[100px]">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {users.map((u) => (
-                                        <TableRow key={u.id}>
-                                            <TableCell>
-                                                <div className="font-medium text-slate-900 dark:text-white">{u.full_name || 'Anonymous'}</div>
-                                                <div className="text-xs text-slate-500">{u.email}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge
-                                                    className={u.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200'}
-                                                    variant="outline"
-                                                >
-                                                    {u.role || 'user'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="font-medium">
-                                                {u.credit_balance || 0}
-                                            </TableCell>
-                                            <TableCell className="text-slate-500">
-                                                {u.created_at ? format(new Date(u.created_at), 'MMM d, yyyy') : '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
-                                                    onClick={() => openManageUser(u)}
-                                                >
-                                                    Manage
-                                                </Button>
-                                            </TableCell>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="whitespace-nowrap">User / Email</TableHead>
+                                            <TableHead className="whitespace-nowrap">Role</TableHead>
+                                            <TableHead className="whitespace-nowrap">Credits</TableHead>
+                                            <TableHead className="whitespace-nowrap">Joined</TableHead>
+                                            <TableHead className="w-[100px] whitespace-nowrap text-right">Actions</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {users.map((u) => (
+                                            <TableRow key={u.id}>
+                                                <TableCell className="whitespace-nowrap">
+                                                    <div className="font-medium text-slate-900 dark:text-white">{u.full_name || 'Anonymous'}</div>
+                                                    <div className="text-xs text-slate-500">{u.email}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge
+                                                        className={u.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-slate-100 text-slate-700 border-slate-200'}
+                                                        variant="outline"
+                                                    >
+                                                        {u.role || 'user'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="font-medium whitespace-nowrap">
+                                                    {u.credit_balance || 0}
+                                                </TableCell>
+                                                <TableCell className="text-slate-500 whitespace-nowrap">
+                                                    {u.created_at ? format(new Date(u.created_at), 'MMM d, yyyy') : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                                                        onClick={() => openManageUser(u)}
+                                                    >
+                                                        Manage
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
@@ -585,28 +598,30 @@ export default function AdminPage() {
                             <CardTitle className="text-lg">Audit Logs</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Action</TableHead>
-                                        <TableHead>Entity</TableHead>
-                                        <TableHead>User</TableHead>
-                                        <TableHead>Date</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {auditLogs.map((log) => (
-                                        <TableRow key={log.id}>
-                                            <TableCell className="font-medium">{log.action}</TableCell>
-                                            <TableCell>{log.entity_type || '-'}</TableCell>
-                                            <TableCell className="text-slate-500">{log.user_id || '-'}</TableCell>
-                                            <TableCell className="text-slate-500">
-                                                {log.created_at ? format(new Date(log.created_at), 'MMM d, yyyy HH:mm') : '-'}
-                                            </TableCell>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="whitespace-nowrap">Action</TableHead>
+                                            <TableHead className="whitespace-nowrap">Entity</TableHead>
+                                            <TableHead className="whitespace-nowrap">User</TableHead>
+                                            <TableHead className="whitespace-nowrap">Date</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {auditLogs.map((log) => (
+                                            <TableRow key={log.id}>
+                                                <TableCell className="font-medium whitespace-nowrap">{log.action}</TableCell>
+                                                <TableCell className="whitespace-nowrap">{log.entity_type || '-'}</TableCell>
+                                                <TableCell className="text-slate-500 whitespace-nowrap">{log.user_id || '-'}</TableCell>
+                                                <TableCell className="text-slate-500 whitespace-nowrap">
+                                                    {log.created_at ? format(new Date(log.created_at), 'MMM d, yyyy HH:mm') : '-'}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
