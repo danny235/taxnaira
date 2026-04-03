@@ -41,6 +41,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isDeleting, setIsDeleting] = useState(false);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+    const [savingId, setSavingId] = useState<string | null>(null);
 
     const filtered = transactions.filter(tx =>
         tx.description?.toLowerCase().includes(search.toLowerCase()) ||
@@ -49,6 +50,7 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
     );
 
     const handleCategoryChange = async (txId: string, mainCat: string, subCat: string) => {
+        setSavingId(txId);
         try {
             const response = await fetch(`/api/user/transactions/${txId}`, {
                 method: 'PATCH',
@@ -69,11 +71,14 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
             if (onUpdate) onUpdate();
         } catch (error: any) {
             toast.error("Update failed: " + error.message);
+        } finally {
+            setSavingId(null);
         }
     };
 
     const handleDelete = async (txId: string) => {
         if (!confirm("Are you sure?")) return;
+        setSavingId(txId);
         try {
             const response = await fetch(`/api/user/transactions/${txId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to delete');
@@ -81,6 +86,8 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
             if (onUpdate) onUpdate();
         } catch (error: any) {
             toast.error("Delete failed");
+        } finally {
+            setSavingId(null);
         }
     };
 
@@ -226,7 +233,11 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1 justify-end">
-                                        {editingId === tx.id ? (
+                                        {savingId === tx.id ? (
+                                            <div className="h-7 w-7 flex items-center justify-center">
+                                                <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
+                                            </div>
+                                        ) : editingId === tx.id ? (
                                             <>
                                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleCategoryChange(tx.id, editMainCategory, editSubCategory)}>
                                                     <Check className="w-4 h-4 text-emerald-600" />
@@ -237,14 +248,14 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                                             </>
                                         ) : (
                                             <>
-                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => { 
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-emerald-600" onClick={() => { 
                                                     setEditingId(tx.id); 
                                                     setEditMainCategory(tx.main_category || 'Personal');
                                                     setEditSubCategory(tx.sub_category || tx.category || ''); 
                                                 }}>
                                                     <Edit2 className="w-4 h-4" />
                                                 </Button>
-                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => handleDelete(tx.id)}>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => handleDelete(tx.id)}>
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </>

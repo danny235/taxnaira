@@ -253,12 +253,14 @@ BEHAVIOR RULES:
         case 'UPDATE_TRANSACTION':
           const updateRes = await supabase
             .from('transactions')
+            .update({
               main_category: action.data.main_category,
               business_flag: action.data.main_category?.toLowerCase(),
               category: action.data.category || action.data.sub_category,
               sub_category: action.data.sub_category,
               is_income: action.data.is_income,
               manually_categorized: true,
+            })
             .eq('id', action.data.id)
             .eq('user_id', user.id);
           if (!updateRes.error) editCount++;
