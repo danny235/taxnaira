@@ -2,16 +2,11 @@
   "name": "AzaWise",
   "short_name": "AzaWise",
   "description": "Smart Expense & Tax Management for Nigerians",
-  "start_url": "/",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
   "icons": [
-    {
-      "src": "/favicon.ico",
-      "sizes": "64x64",
-      "type": "image/x-icon"
-    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",

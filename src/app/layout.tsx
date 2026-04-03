@@ -52,17 +52,6 @@ export default function RootLayout({
         >
           <BackgroundPattern />
           {children}
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                if ('serviceWorker' in navigator) {
-                  window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('/sw.js');
-                  });
-                }
-              `,
-            }}
-          />
         </Providers>
       </body>
     </html>
