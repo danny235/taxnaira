@@ -29,28 +29,19 @@ export function InstallPrompt() {
         const handleBeforeInstallPrompt = (e: any) => {
             e.preventDefault()
             setInstallPrompt(e)
-            setTimeout(() => setIsVisible(true), 4000)
+            // Aventridge pattern: Show prompt after a slight delay
+            setTimeout(() => setIsVisible(true), 3000)
         }
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
 
         // iOS: always show with manual guide (event never fires on iOS)
         if (isIosDevice) {
-            setTimeout(() => setIsVisible(true), 4000)
+            setTimeout(() => setIsVisible(true), 3000)
         }
-
-        // Android fallback: if beforeinstallprompt hasn't fired after 8s,
-        // show the manual instruction banner anyway.
-        // This covers cases where criteria are met but the event was missed.
-        const fallbackTimer = setTimeout(() => {
-            if (!isIosDevice) {
-                setIsVisible(true)
-            }
-        }, 8000)
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-            clearTimeout(fallbackTimer)
         }
     }, [])
 
@@ -62,10 +53,6 @@ export function InstallPrompt() {
                 setInstallPrompt(null)
                 setIsVisible(false)
             }
-        } else {
-            // Fallback: dismiss and let user find it in Chrome menu
-            setIsVisible(false)
-            localStorage.setItem('pwa_prompt_dismissed', 'true')
         }
     }
 
@@ -83,7 +70,7 @@ export function InstallPrompt() {
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 50 }}
-                    className="fixed bottom-64 lg:bottom-6 right-4 lg:right-6 z-70 flex flex-col items-end gap-4"
+                    className="fixed bottom-36 lg:bottom-6 right-4 lg:right-6 z-70 flex flex-col items-end gap-4"
                 >
                     <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-emerald-500/20 dark:border-emerald-500/10 rounded-3xl p-5 shadow-2xl flex flex-col gap-4 relative overflow-hidden w-full md:w-96">
                         <div className="flex items-start justify-between">
