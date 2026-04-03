@@ -29,7 +29,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/components/auth-provider'
 import { useQuery } from '@tanstack/react-query'
-import { usePWA } from '@/hooks/use-pwa'
 
 // Map page names to paths for Next.js
 const pageToPath = (page: string) => {
@@ -63,7 +62,6 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarProps) {
     const pathname = usePathname()
     const { signOut, user } = useAuth()
-    const { isStandalone, install, canInstall, isIOS } = usePWA()
 
     const { data: conversations = [] } = useQuery({
         queryKey: ['admin', 'conversations'],
@@ -195,28 +193,7 @@ export function Sidebar({ collapsed, onToggle, subscription, isAdmin }: SidebarP
                         {!collapsed && <span className="font-medium">{item.name}</span>}
                     </Link>
                 ))}
-                
-                {/* PWA Install CTA */}
-                {!isStandalone && (
-                    <button
-                        onClick={install}
-                        className={cn(
-                            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 transition-all font-bold mt-2',
-                            collapsed && 'justify-center'
-                        )}
-                    >
-                        <Smartphone className={cn("w-5 h-5", canInstall && "animate-pulse")} />
-                        {!collapsed && (
-                            <div className="text-left">
-                                <span className="text-sm block">Install AzaWise</span>
-                                <span className="text-[10px] text-emerald-500/70 block -mt-1">
-                                    {isIOS ? 'Add to Home Screen' : 'Install for Desktop/Android'}
-                                </span>
-                            </div>
-                        )}
-                    </button>
-                )}
-                
+
                 <button
                     onClick={() => signOut()}
                     className={cn(
