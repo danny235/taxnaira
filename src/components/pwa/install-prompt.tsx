@@ -10,34 +10,35 @@ export function InstallPrompt() {
     const [isIOS, setIsIOS] = useState(false)
 
     useEffect(() => {
+        // Check if iOS
         const ua = window.navigator.userAgent
         const isIosDevice = /iphone|ipad|ipod/i.test(ua)
         setIsIOS(isIosDevice)
 
-        // Already installed — never show
+        // Check standalone (already installed)
         const isStandalone =
             window.matchMedia('(display-mode: standalone)').matches ||
             (window.navigator as any).standalone === true
 
         if (isStandalone) return
 
-        // Already dismissed this session
-        const hasDismissed = localStorage.getItem('pwa_prompt_dismissed')
-        if (hasDismissed) return
-
-        // Android/Desktop Chrome: wait for the native browser event
+        // Android / Desktop Chrome handling
         const handleBeforeInstallPrompt = (e: any) => {
             e.preventDefault()
             setInstallPrompt(e)
-            // Aventridge pattern: Show prompt after a slight delay
+            // Show prompt after a delay
             setTimeout(() => setIsVisible(true), 3000)
         }
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
 
-        // iOS: always show with manual guide (event never fires on iOS)
-        if (isIosDevice) {
-            setTimeout(() => setIsVisible(true), 3000)
+        // iOS detection - showing prompt if not standalone
+        if (isIosDevice && !isStandalone) {
+            // Only show once per session or use local storage
+            const hasDismissed = localStorage.getItem('pwa_prompt_dismissed')
+            if (!hasDismissed) {
+                setTimeout(() => setIsVisible(true), 3000)
+            }
         }
 
         return () => {
@@ -70,7 +71,7 @@ export function InstallPrompt() {
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 50 }}
-                    className="fixed bottom-36 lg:bottom-6 right-4 lg:right-6 z-70 flex flex-col items-end gap-4"
+                    className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 z-50 flex flex-col items-end gap-4"
                 >
                     <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-emerald-500/20 dark:border-emerald-500/10 rounded-3xl p-5 shadow-2xl flex flex-col gap-4 relative overflow-hidden w-full md:w-96">
                         <div className="flex items-start justify-between">
