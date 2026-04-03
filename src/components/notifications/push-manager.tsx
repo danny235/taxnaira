@@ -38,49 +38,53 @@ export function PushManager() {
 
     return (
         <AnimatePresence>
-            <motion.div
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="fixed bottom-24 right-6 left-6 md:left-auto md:w-80 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 overflow-hidden"
-            >
-                <div className="absolute top-2 right-2">
-                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full" onClick={() => setDismissed(true)}>
-                        <X className="w-3 h-3" />
-                    </Button>
-                </div>
+            {!dismissed && (status === 'prompt' || status === 'loading') && (
+                <motion.div
+                    initial={{ opacity: 0, y: -50 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -50 }}
+                    className="fixed top-20 left-4 right-4 md:left-auto md:right-6 md:w-96 z-60"
+                >
+                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-emerald-500/20 dark:border-emerald-500/10 rounded-3xl p-5 shadow-2xl flex flex-col gap-4 relative overflow-hidden">
+                        <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="h-12 w-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-500/20">
+                                    <Bell className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <h3 className="font-bold text-slate-900 dark:text-white text-base">Turn on Notifications</h3>
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                        Stay updated on your deposits, taxes, and portfolio performance in real-time.
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setDismissed(true)}
+                                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
 
-                <div className="flex gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                        <Bell className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                        <div className="flex gap-2">
+                            <Button 
+                                variant="ghost" 
+                                className="flex-1 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold py-3 rounded-2xl transition-colors text-sm border border-slate-100 dark:border-slate-800" 
+                                onClick={() => setDismissed(true)}
+                            >
+                                Not Now
+                            </Button>
+                            <Button 
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-2xl transition-all shadow-lg shadow-emerald-600/20 active:scale-[0.98] text-sm"
+                                onClick={handleEnable}
+                                disabled={status === 'loading'}
+                            >
+                                {status === 'loading' ? 'Enabling...' : 'Enable'}
+                            </Button>
+                        </div>
                     </div>
-                    <div className="flex-1 min-w-0 pr-4">
-                        <h3 className="font-bold text-slate-900 dark:text-white text-sm">Stay Updated</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                            Enable push notifications to never miss important tax updates and support replies.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="flex-1 text-xs" 
-                        onClick={() => setDismissed(true)}
-                    >
-                        Maybe later
-                    </Button>
-                    <Button 
-                        size="sm" 
-                        className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={handleEnable}
-                        disabled={status === 'loading'}
-                    >
-                        {status === 'loading' ? 'Enabling...' : 'Enable Now'}
-                    </Button>
-                </div>
-            </motion.div>
+                </motion.div>
+            )}
         </AnimatePresence>
     )
 }
