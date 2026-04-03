@@ -7,41 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { format } from 'date-fns';
-import { Search, Edit2, Check, X, AlertTriangle, Trash2, Loader2 } from 'lucide-react';
+import { Search, Edit2, Check, X, Trash2, Loader2 } from 'lucide-react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from 'sonner';
 
-export const categories = [
-    { value: 'salary', label: 'Salary', isIncome: true },
-    { value: 'business revenue', label: 'Business Revenue', isIncome: true },
-    { value: 'freelance income', label: 'Freelance Income', isIncome: true },
-    { value: 'foreign income', label: 'Foreign Income', isIncome: true },
-    { value: 'capital gains', label: 'Capital Gains', isIncome: true },
-    { value: 'crypto sale', label: 'Crypto Sale', isIncome: true },
-    { value: 'other income', label: 'Other Income', isIncome: true },
-    { value: 'rent', label: 'Rent', isIncome: false },
-    { value: 'utilities', label: 'Utilities', isIncome: false },
-    { value: 'food', label: 'Food', isIncome: false },
-    { value: 'transportation', label: 'Transportation', isIncome: false },
-    { value: 'fuel', label: 'Fuel', isIncome: false },
-    { value: 'data', label: 'Data', isIncome: false },
-    { value: 'staff salary', label: 'Staff Salary', isIncome: false },
-    { value: 'phone', label: 'Phone', isIncome: false },
-    { value: 'business expenses', label: 'Business Expenses', isIncome: false },
-    { value: 'pension contributions', label: 'Pension', isIncome: false },
-    { value: 'nhf contributions', label: 'NHF', isIncome: false },
-    { value: 'insurance', label: 'Insurance', isIncome: false },
-    { value: 'transfers', label: 'Transfers', isIncome: false },
-    { value: 'crypto purchase', label: 'Crypto Purchase', isIncome: false },
-    { value: 'tax_payments', label: 'Tax/Levies', isIncome: false },
-    { value: 'bank_charges', label: 'Bank Charges', isIncome: false },
-    { value: 'personal_expense', label: 'Personal Expense', isIncome: false },
-    { value: 'miscellaneous', label: 'Miscellaneous', isIncome: false },
-];
-
 interface Transaction {
-    id: string; // Changed from number/string to string for UUID
+    id: string;
     date: string;
     description: string;
     amount: number;
@@ -64,72 +36,56 @@ interface TransactionTableProps {
 export default function TransactionTable({ transactions = [], onUpdate }: TransactionTableProps) {
     const [search, setSearch] = useState('');
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [editCategory, setEditCategory] = useState('');
+    const [editMainCategory, setEditMainCategory] = useState('');
+    const [editSubCategory, setEditSubCategory] = useState('');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isDeleting, setIsDeleting] = useState(false);
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
     const filtered = transactions.filter(tx =>
         tx.description?.toLowerCase().includes(search.toLowerCase()) ||
+        tx.sub_category?.toLowerCase().includes(search.toLowerCase()) ||
         tx.category?.toLowerCase().includes(search.toLowerCase())
     );
 
-    const handleCategoryChange = async (txId: string, newCategory: string) => {
-        const cat = categories.find(c => c.value === newCategory);
-
+    const handleCategoryChange = async (txId: string, mainCat: string, subCat: string) => {
         try {
             const response = await fetch(`/api/user/transactions/${txId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    category: newCategory,
-                    is_income: cat?.isIncome || false,
+                    main_category: mainCat,
+                    sub_category: subCat,
+                    category: subCat,
+                    business_flag: mainCat.toLowerCase(),
                     manually_categorized: true
                 })
             });
 
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to update category');
-            }
+            if (!response.ok) throw new Error('Failed to update');
 
-            toast.success("Category updated");
+            toast.success("Transaction updated");
             setEditingId(null);
             if (onUpdate) onUpdate();
         } catch (error: any) {
-            toast.error("Failed to update category: " + error.message);
+            toast.error("Update failed: " + error.message);
         }
     };
 
     const handleDelete = async (txId: string) => {
-        if (!confirm("Are you sure you want to delete this transaction?")) return;
-
+        if (!confirm("Are you sure?")) return;
         try {
-            const response = await fetch(`/api/user/transactions/${txId}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to delete transaction');
-            }
-
-            toast.success("Transaction deleted");
-            setSelectedIds(prev => {
-                const next = new Set(prev);
-                next.delete(txId);
-                return next;
-            });
+            const response = await fetch(`/api/user/transactions/${txId}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete');
+            toast.success("Deleted");
             if (onUpdate) onUpdate();
         } catch (error: any) {
-            toast.error("Failed to delete transaction: " + error.message);
+            toast.error("Delete failed");
         }
     };
 
     const handleBatchDelete = async () => {
         if (selectedIds.size === 0) return;
-        if (!confirm(`Are you sure you want to delete ${selectedIds.size} transactions?`)) return;
-
         setIsDeleting(true);
         try {
             const response = await fetch('/api/user/transactions', {
@@ -137,26 +93,16 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ids: Array.from(selectedIds) })
             });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to delete transactions');
-            }
-
-            toast.success(`${selectedIds.size} transactions deleted`);
+            if (!response.ok) throw new Error('Failed');
+            toast.success("Batch deleted");
             setSelectedIds(new Set());
             if (onUpdate) onUpdate();
-        } catch (error: any) {
-            toast.error("Failed to delete transactions: " + error.message);
         } finally {
             setIsDeleting(false);
         }
     };
 
-    const handleBatchCategoryChange = async (newCategory: string) => {
-        if (selectedIds.size === 0) return;
-        const cat = categories.find(c => c.value === newCategory);
-
+    const handleBatchCategoryChange = async (mainCat: string) => {
         setIsBulkUpdating(true);
         try {
             const response = await fetch('/api/user/transactions', {
@@ -164,156 +110,141 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ids: Array.from(selectedIds),
-                    updates: {
-                        category: newCategory,
-                        is_income: cat?.isIncome || false,
+                    updates: { 
+                        main_category: mainCat, 
+                        business_flag: mainCat.toLowerCase(),
+                        manually_categorized: true 
                     }
                 })
             });
-
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error || 'Failed to update categories');
-            }
-
-            toast.success(`Updated ${selectedIds.size} transactions to "${cat?.label || newCategory}"`);
+            if (!response.ok) throw new Error('Failed');
+            toast.success("Batch updated");
             setSelectedIds(new Set());
             if (onUpdate) onUpdate();
-        } catch (error: any) {
-            toast.error("Failed to update categories: " + error.message);
         } finally {
             setIsBulkUpdating(false);
         }
     };
 
-    const toggleSelect = (id: string) => {
-        const next = new Set(selectedIds);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        setSelectedIds(next);
-    };
-
     const toggleSelectAll = (checked: boolean) => {
-        if (checked) {
-            setSelectedIds(new Set(filtered.map(tx => tx.id)));
-        } else {
-            setSelectedIds(new Set());
-        }
+        if (checked) setSelectedIds(new Set(filtered.map(tx => tx.id)));
+        else setSelectedIds(new Set());
     };
 
     return (
         <div className="space-y-4">
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
                 <Input
                     placeholder="Search transactions..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                    className="pl-10 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
                 />
             </div>
 
             <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white dark:bg-slate-800">
                 <Table>
                     <TableHeader>
-                        <TableRow className="bg-slate-50 dark:bg-slate-700/50">
+                        <TableRow className="bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700">
                             <TableHead className="w-[50px]">
                                 <Checkbox
                                     checked={filtered.length > 0 && selectedIds.size === filtered.length}
                                     onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                                    className="border-slate-300 dark:border-slate-600"
                                 />
                             </TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Date</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Description</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Amount</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Taxable</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Category</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider">Sub Category</TableHead>
-                            <TableHead className="font-semibold text-xs py-2 uppercase tracking-wider w-[80px] text-right">Actions</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Date</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Description</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Amount</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Taxable</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Category</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Sub Category</TableHead>
+                            <TableHead className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 w-[80px] text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filtered.length > 0 ? filtered.map((tx) => (
                             <TableRow key={tx.id} className={cn(
-                                "hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors",
-                                selectedIds.has(tx.id) && "bg-emerald-50/30 dark:bg-emerald-900/10"
+                                "border-slate-200 dark:border-slate-700 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/50",
+                                selectedIds.has(tx.id) && "bg-emerald-50/50 dark:bg-emerald-950/20"
                             )}>
                                 <TableCell>
                                     <Checkbox
                                         checked={selectedIds.has(tx.id)}
-                                        onCheckedChange={() => toggleSelect(tx.id)}
+                                        onCheckedChange={() => {
+                                            const next = new Set(selectedIds);
+                                            if (next.has(tx.id)) next.delete(tx.id);
+                                            else next.add(tx.id);
+                                            setSelectedIds(next);
+                                        }}
+                                        className="border-slate-300 dark:border-slate-600"
                                     />
                                 </TableCell>
-                                <TableCell className="text-slate-600 dark:text-slate-400">
-                                    {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
-                                </TableCell>
-                                <TableCell className="font-medium text-slate-900 dark:text-white max-w-[200px] truncate">
-                                    {tx.description || '-'}
-                                </TableCell>
-                                <TableCell>
-                                    <span className={tx.is_income ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}>
+                                <TableCell className="text-xs text-slate-600 dark:text-slate-400">{tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}</TableCell>
+                                <TableCell className="text-xs font-medium text-slate-900 dark:text-slate-200 truncate max-w-[200px]">{tx.description || '-'}</TableCell>
+                                <TableCell className="text-xs">
+                                    <span className={tx.is_income ? 'text-emerald-600' : 'text-red-600'}>
                                         {tx.is_income ? '+' : '-'}₦{(tx.naira_value || tx.amount || 0).toLocaleString()}
                                     </span>
-                                    {tx.currency && tx.currency !== 'NGN' && (
-                                        <span className="text-xs text-slate-400 ml-1">({tx.currency} {tx.amount})</span>
-                                    )}
                                 </TableCell>
                                 <TableCell>
                                     <Badge className={cn(
-                                        "text-[10px] uppercase tracking-wider font-bold h-5 py-0 px-2 border-0 shadow-sm", 
-                                        tx.main_category === 'Business' ? "bg-emerald-600 text-white hover:bg-emerald-600" :
-                                        "bg-blue-500 text-white hover:bg-blue-500"
+                                        "text-[10px] uppercase font-bold px-2", 
+                                        tx.main_category === 'Business' ? "bg-emerald-600" : "bg-slate-500"
                                     )}>
                                         {tx.main_category === 'Business' ? 'Yes' : 'No'}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
                                     {editingId === tx.id ? (
-                                        <Select value={editCategory} onValueChange={setEditCategory}>
-                                            <SelectTrigger className="w-[150px] h-8">
+                                        <Select value={editMainCategory} onValueChange={setEditMainCategory}>
+                                            <SelectTrigger className="w-[100px] h-7 text-[10px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
                                                 <SelectValue />
                                             </SelectTrigger>
-                                            <SelectContent position="popper" className="max-h-[300px]">
-                                                {categories.map(cat => (
-                                                    <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                                                ))}
+                                            <SelectContent className="dark:bg-slate-900 dark:border-slate-700">
+                                                <SelectItem value="Business">Business</SelectItem>
+                                                <SelectItem value="Personal">Personal</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     ) : (
-                                        <Badge variant={tx.is_income ? "default" : "secondary"} className={cn(
-                                            "text-[10px] font-medium border-slate-200 dark:border-slate-700 shadow-none",
-                                            tx.is_income ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-50" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                        )}>
-                                            {categories.find(c => c.value === tx.sub_category)?.label || 
-                                             categories.find(c => c.value === tx.category)?.label || 
-                                             tx.sub_category?.replace(/_/g, ' ') || 
-                                             tx.category?.replace(/_/g, ' ') || 
-                                             'Uncategorized'}
+                                        <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">{tx.main_category || 'Personal'}</span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {editingId === tx.id ? (
+                                        <Input 
+                                            value={editSubCategory} 
+                                            onChange={(e) => setEditSubCategory(e.target.value)}
+                                            className="h-7 text-[10px] w-[140px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
+                                        />
+                                    ) : (
+                                        <Badge variant="outline" className="text-[10px] font-medium border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-900/50">
+                                            {tx.sub_category || tx.category?.replace(/_/g, ' ') || '-'}
                                         </Badge>
                                     )}
                                 </TableCell>
                                 <TableCell>
-                                    <span className="text-[10px] font-medium text-slate-500">
-                                        {tx.sub_category?.replace(/_/g, ' ') || '-'}
-                                    </span>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1 justify-end">
                                         {editingId === tx.id ? (
                                             <>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleCategoryChange(tx.id, editCategory)}>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleCategoryChange(tx.id, editMainCategory, editSubCategory)}>
                                                     <Check className="w-4 h-4 text-emerald-600" />
                                                 </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingId(null)}>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}>
                                                     <X className="w-4 h-4 text-red-600" />
                                                 </Button>
                                             </>
                                         ) : (
                                             <>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-emerald-600" onClick={() => { setEditingId(tx.id); setEditCategory(tx.category || ''); }}>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => { 
+                                                    setEditingId(tx.id); 
+                                                    setEditMainCategory(tx.main_category || 'Personal');
+                                                    setEditSubCategory(tx.sub_category || tx.category || ''); 
+                                                }}>
                                                     <Edit2 className="w-4 h-4" />
                                                 </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-400 hover:text-red-600" onClick={() => handleDelete(tx.id)}>
+                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => handleDelete(tx.id)}>
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </>
@@ -323,64 +254,30 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
                             </TableRow>
                         )) : (
                             <TableRow>
-                                <TableCell colSpan={8} className="text-center py-8 text-slate-400">
-                                    No transactions found
-                                </TableCell>
+                                <TableCell colSpan={8} className="text-center py-8 text-slate-400">No transactions found</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                 </Table>
             </div>
 
-            {/* Floating Selection Bar */}
             {selectedIds.size > 0 && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                    <div className="bg-slate-900 dark:bg-slate-800 text-white px-6 py-3 rounded-full border border-slate-700 dark:border-slate-600 shadow-2xl flex items-center gap-6">
-                        <span className="text-sm font-medium">
-                            {selectedIds.size} {selectedIds.size === 1 ? 'transaction' : 'transactions'} selected
-                        </span>
-                        <div className="h-4 w-px bg-slate-700" />
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+                    <div className="bg-slate-900 dark:bg-emerald-950 text-white px-6 py-3 rounded-full flex items-center gap-6 shadow-2xl border border-slate-800 dark:border-emerald-800/50">
+                        <span className="text-sm font-medium">{selectedIds.size} selected</span>
                         <div className="flex items-center gap-2">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-slate-400 hover:text-white h-8"
-                                onClick={() => setSelectedIds(new Set())}
-                            >
-                                Deselect all
-                            </Button>
-                            <div className="h-4 w-px bg-slate-700" />
-                            <Select
-                                onValueChange={handleBatchCategoryChange}
-                                disabled={isBulkUpdating}
-                            >
-                                <SelectTrigger className="h-8 w-[160px] bg-slate-800 border-slate-600 text-white text-xs">
-                                    {isBulkUpdating ? (
-                                        <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                                    ) : (
-                                        <Edit2 className="w-3 h-3 mr-1" />
-                                    )}
-                                    <SelectValue placeholder="Change category" />
+                            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white hover:bg-slate-800" onClick={() => setSelectedIds(new Set())}>Deselect</Button>
+                            <Select onValueChange={handleBatchCategoryChange}>
+                                <SelectTrigger className="w-[120px] h-8 text-xs bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 border-0">
+                                    <SelectValue placeholder="Set Taxable" />
                                 </SelectTrigger>
-                                <SelectContent position="popper" className="max-h-[300px]">
-                                    {categories.map(cat => (
-                                        <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                                    ))}
+                                <SelectContent className="dark:bg-slate-900 dark:border-slate-700">
+                                    <SelectItem value="Business">Business</SelectItem>
+                                    <SelectItem value="Personal">Personal</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                className="h-8 px-4 rounded-full font-semibold shadow-sm hover:scale-105 transition-transform"
-                                onClick={handleBatchDelete}
-                                disabled={isDeleting}
-                            >
-                                {isDeleting ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                )}
-                                Delete
+                            <Button variant="destructive" size="sm" className="h-8 bg-red-600 hover:bg-red-700" onClick={handleBatchDelete} disabled={isDeleting}>
+                                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />} Delete
                             </Button>
                         </div>
                     </div>
@@ -389,4 +286,3 @@ export default function TransactionTable({ transactions = [], onUpdate }: Transa
         </div>
     );
 }
-

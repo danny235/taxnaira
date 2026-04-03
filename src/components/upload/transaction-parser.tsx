@@ -42,16 +42,6 @@ const categoryLabels: Record<string, string> = {
     // Main Categories
     Business: 'Business',
     Personal: 'Personal',
-    
-    // Sub Categories
-    fuel: 'Fuel',
-    data: 'Data',
-    'staff salary': 'Staff Salary',
-    phone: 'Phone',
-    bank_charges: 'Bank Charges',
-    tax_payments: 'Tax/Levies',
-    personal_expense: 'Personal',
-    miscellaneous: 'Misc'
 };
 
 interface Transaction {
@@ -377,14 +367,13 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
         setSelected(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    const handleCategoryChange = (id: string, field: 'main_category' | 'sub_category', value: string) => {
+    const handleCategoryChange = (id: string, field: 'main_category' | 'category' | 'sub_category', value: string) => {
         setTransactions(prev => prev.map(tx => {
             if (tx.tempId === id) {
                 const updated = { ...tx, [field]: value };
-                // Only reset sub-category if it's empty or doesn't exist
-                // This allows AI-generated sub-categories to persist when switching between Business/Personal
-                if (field === 'main_category' && !tx.sub_category) {
-                    updated.sub_category = CATEGORY_MAP[value][0];
+                // If main_category changes, we can optionally pick a default broad category
+                if (field === 'main_category' && !tx.category) {
+                    updated.category = CATEGORY_MAP[value][0];
                 }
                 return updated;
             }
@@ -442,9 +431,10 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                     source: 'upload',
                     source_file_id: fileId,
                     tax_year: new Date(tx.date).getFullYear(),
-                    manually_categorized: true,
-                    transaction_type: type || tx.type,
-                    category: tx.sub_category || tx.main_category,
+                    main_category: tx.main_category,
+                    business_flag: tx.main_category?.toLowerCase(),
+                    category: tx.category || tx.sub_category || tx.main_category,
+                    sub_category: tx.sub_category,
                     naira_value: tx.currency === 'NGN' || !tx.currency ? tx.amount : tx.amount
                 };
             });
@@ -739,15 +729,16 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
 
                         <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden max-h-[400px] overflow-y-auto overflow-x-auto">
                             <Table>
-                                <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-700">
-                                    <TableRow>
+                                <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b border-slate-200 dark:border-slate-700">
+                                    <TableRow className="hover:bg-transparent">
                                         <TableHead className="w-[50px]"></TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Account Name</TableHead>
-                                        <TableHead>Description</TableHead>
-                                        <TableHead>Amount</TableHead>
-                                        <TableHead>Sub Category</TableHead>
-                                        <TableHead>Taxable</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Account</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Description</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Amount</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Taxable</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Category</TableHead>
+                                        <TableHead className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Sub Category</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -769,40 +760,47 @@ export default function TransactionParser({ fileUrl, fileId, userId, employmentT
                                                         onCheckedChange={() => toggleSelect(tx.tempId)}
                                                     />
                                                 </TableCell>
-                                                <TableCell className="text-sm whitespace-nowrap">
+                                                <TableCell className="text-xs whitespace-nowrap text-slate-600 dark:text-slate-400">
                                                     {tx.date ? format(new Date(tx.date), 'MMM d, yyyy') : '-'}
                                                 </TableCell>
-                                                <TableCell className="text-[10px] font-medium text-slate-900 truncate max-w-[120px]" title={tx.account_name}>
-                                                    {tx.account_name || <span className="text-slate-300 italic">None</span>}
+                                                <TableCell className="text-[10px] font-medium text-slate-900 dark:text-slate-200 truncate max-w-[120px]" title={tx.account_name}>
+                                                    {tx.account_name || <span className="text-slate-400 dark:text-slate-600 italic">None</span>}
                                                 </TableCell>
-                                                <TableCell className="text-[10px] font-medium text-slate-600 truncate max-w-[150px]" title={tx.description}>
+                                                <TableCell className="text-[10px] font-medium text-slate-600 dark:text-slate-400 truncate max-w-[150px]" title={tx.description}>
                                                     {tx.description}
                                                 </TableCell>
                                                 <TableCell className={cn(tx.is_income ? 'text-emerald-600' : 'text-red-600', "whitespace-nowrap font-bold")}>
                                                     {tx.is_income ? '+' : '-'}{tx.currency || '₦'}{tx.amount?.toLocaleString()}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Input
-                                                        list="subcategory-suggestions"
-                                                        value={tx.sub_category || ''}
-                                                        onChange={(e) => handleCategoryChange(tx.tempId, 'sub_category', e.target.value)}
-                                                        className="h-8 text-[10px] w-[130px] bg-white dark:bg-slate-900 border-slate-200 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                                                        placeholder="Custom category..."
-                                                    />
+                                                    <Badge className={cn(
+                                                        "text-[10px] uppercase font-bold px-2 border-0 shadow-sm", 
+                                                        tx.main_category === 'Business' ? "bg-emerald-600 text-white" : "bg-slate-500 text-white"
+                                                    )}>
+                                                        {tx.main_category === 'Business' ? 'Yes' : 'No'}
+                                                    </Badge>
                                                 </TableCell>
                                                 <TableCell>
                                                     <Select
                                                         value={tx.main_category || 'Business'}
                                                         onValueChange={(val) => handleCategoryChange(tx.tempId, 'main_category', val)}
                                                     >
-                                                        <SelectTrigger className="h-8 text-[10px] w-[90px] bg-white dark:bg-slate-900">
-                                                            <SelectValue placeholder="Taxable" />
+                                                        <SelectTrigger className="h-8 text-[10px] w-[80px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+                                                            <SelectValue placeholder="Category" />
                                                         </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Business">Yes</SelectItem>
-                                                            <SelectItem value="Personal">No</SelectItem>
+                                                        <SelectContent className="dark:bg-slate-900 dark:border-slate-700">
+                                                            <SelectItem value="Business">Business</SelectItem>
+                                                            <SelectItem value="Personal">Personal</SelectItem>
                                                         </SelectContent>
                                                     </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Input
+                                                        value={tx.sub_category || tx.category || ''}
+                                                        onChange={(e) => handleCategoryChange(tx.tempId, 'sub_category', e.target.value)}
+                                                        className="h-8 text-[10px] w-[120px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus-visible:ring-emerald-500"
+                                                        placeholder="Specific detail..."
+                                                    />
                                                 </TableCell>
                                             </motion.tr>
                                         ))}

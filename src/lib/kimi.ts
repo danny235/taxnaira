@@ -66,14 +66,15 @@ export async function extractDataFromStatement(
 
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
-    - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
-    - description: (string - Extract the description EXACTLY as it appears in the source file.)
-    - amount: (number - Extract the value EXACTLY as written. Remove commas/symbols.)
-    - is income: (boolean)
-    - main category: (Choices: Business, Personal. Use Account Type from context to bias this.)
-    - sub category: (Specific category name based on Main Category. Examples: salary, rent, utilities, fuel, staff salary, data, bank charges, personal expense, tax payments, business expense.)
-    - ai confidence: (number - A score from 0.0 to 1.0 based on how sure you are of the categorization.)
-    - reasoning: (string - why you chose this specific categorization)
+        - description (string): Clean merchant name or transaction type.
+        - amount (number): Positive for both income and expense.
+        - date (string): ISO format YYYY-MM-DD.
+        - is_income (boolean): true if money entry, false if exit.
+        - currency (string): Usually 'NGN'.
+        - main_category (string): ONLY "Business" or "Personal".
+        - sub_category (string): Specific descriptive name (e.g., 'Bybit', 'Amazon', 'Salary', 'Rent').
+        - reasoning (string): Brief logic for the classification.
+        - ai_confidence (number): 0 to 1.
 
     SELF-AUDIT RULE:
     Before finalizing the JSON, you MUST re-read the input text and verify that every 'amount' and 'date' in your output matches the original document precisely.

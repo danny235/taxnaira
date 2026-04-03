@@ -153,7 +153,9 @@ export async function POST(req: NextRequest) {
       date: tx.date,
       desc: tx.description,
       amount: tx.naira_value || tx.amount,
-      category: tx.category,
+      main_cat: tx.main_category,
+      cat: tx.category,
+      sub_cat: tx.sub_category,
       is_income: tx.is_income,
     }));
 
@@ -175,53 +177,34 @@ If the user asks anything outside your scope, respond with:
 The user has ${txSummary.length} transactions. Here they are:
 ${JSON.stringify(txSummary, null, 1)}
 
-EXPENSE CATEGORIES (is_income=false):
-1. Rent  2. Utilities  3. Food  4. Transportation  5. Business Expenses
-6. Subscriptions  7. Professional Fees  8. Maintenance  9. Health  10. Donations
-11. Tax Payments  12. Bank Charges  13. Pension Contributions  14. NHF Contributions
-15. Insurance  16. Transfers  17. Crypto Purchase  18. Personal Expense  19. Miscellaneous
+    MAIN CATEGORIES:
+    1. Business (Taxable)
+    2. Personal (Non-Taxable)
 
-INCOME CATEGORIES (is_income=true):
-1. Salary  2. Business Revenue  3. Freelance Income  4. Foreign Income
-5. Capital Gains  6. Crypto Sale  7. Other Income
+    SUB CATEGORIES:
+    These are highly specific merchant names or details (e.g., 'Shell', 'Lunch', 'Amazon', 'Salary', 'Rent').
 
-CATEGORY VALUE MAPPING (use these exact values in "category" field):
-Rent=rent, Utilities=utilities, Food=food, Transportation=transportation, Business Expenses=business expenses,
-Subscriptions=subscriptions, Professional Fees=professional_fees, Maintenance=maintenance, Health=health,
-Donations=donations, Tax Payments=tax_payments, Bank Charges=bank_charges, Pension Contributions=pension_contributions,
-NHF Contributions=nhf_contributions, Insurance=insurance, Transfers=transfers, Crypto Purchase=crypto_purchase,
-Personal Expense=personal_expense, Miscellaneous=miscellaneous, Salary=salary, Business Revenue=business_revenue,
-Freelance Income=freelance_income, Foreign Income=foreign_income, Capital Gains=capital_gains,
-Crypto Sale=crypto_sale, Other Income=other_income
+    JSON RESPONSE FORMAT:
+    {"reply": "your text response", "actions": [{"type": "ACTION_TYPE", "data": {...}}]}
 
-RESPONSE FORMAT (always return this JSON structure):
-{
-  "reply": "Your message to the user",
-  "actions": [
-    {
-      "type": "create",
-      "data": { "description": "Salary", "amount": 50000, "category": "salary", "is_income": true, "date": "2023-10-01" }
-    },
-    {
-      "type": "edit" or "delete",
-      "ids": ["id1", "id2"],
-      "updates": { "category": "category_value", "is_income": true/false }
-    }
-  ]
-}
+    ACTIONS:
+    1. UPDATE_TRANSACTION: {"id": "uuid", "main_category": "string", "category": "string", "sub_category": "string", "is_income": boolean}
+    2. DELETE_TRANSACTION: {"id": "uuid"}
+    3. CREATE_TRANSACTION: {"date": "ISO string", "description": "string", "amount": number, "main_category": "string", "category": "string", "sub_category": "string", "is_income": boolean}
 
 BEHAVIOR RULES:
 1. If the user's request to edit/delete is CLEAR and COMPLETE (has both which transactions AND target category), execute immediately.
-2. If the user wants to recategorize but did NOT specify a target category, ask them by showing the FULL numbered category list in your reply. Set actions to [].
+2. If the user wants to recategorize but did NOT specify a target, ask them to choose between 'Business' or 'Personal'. Set actions to [].
 3. CREATING TRANSACTIONS: If the user wants to create or add a transaction (even a generic request like "add a transaction"), you MUST collect these 4 required fields before executing:
    - Description/Title
    - Amount (in absolute numbers, e.g., 50000)
-   - Category (must be from the EXACT category value mapping list above. You must determine is_income based on this category)
+   - Category (must be 'Business' or 'Personal')
+   - Sub Category (Specific label like "fuel" or "Amazon")
    - Date (if not provided, default to today's date: ${new Date().toISOString().split("T")[0]})
    
    CRITICAL: If ANY of these are missing—or if the user provided NO details yet—you MUST explicitly tell the user EXACTLY which fields you need by listing them out as bullet points in your reply. 
-   Example reply: "Sure, to add a transaction I need the following details:\n- **Description/Title**\n- **Amount**\n- **Category**\n- **Date**"
-   Do NOT just say "I need more information", you must output the actual bulleted list! Do NOT return a "create" action until you have all 4 items.
+   Example reply: "Sure, to add a transaction I need the following details:\n- **Description**\n- **Amount**\n- **Category (Business/Personal)**\n- **Sub Category**\n- **Date**"
+   Do NOT just say "I need more information", you must output the actual bulleted list! Do NOT return a "create" action until you have all 5 items.
 4. CRITICAL: If the previous message was YOU asking a clarification question, use their reply to EXECUTE the action. Do NOT ask again.
 5. Only use transaction IDs from the data above for edit/delete. Never invent IDs. For "create", do NOT include IDs.
 6. For edits and creates, always include the correct is_income boolean based on the category.
@@ -266,60 +249,56 @@ BEHAVIOR RULES:
     let deleteCount = 0;
 
     for (const action of actions) {
-      if (action.type !== "create" && (!action.ids || action.ids.length === 0))
-        continue;
+      switch (action.type) {
+        case 'UPDATE_TRANSACTION':
+          const updateRes = await supabase
+            .from('transactions')
+              main_category: action.data.main_category,
+              business_flag: action.data.main_category?.toLowerCase(),
+              category: action.data.category || action.data.sub_category,
+              sub_category: action.data.sub_category,
+              is_income: action.data.is_income,
+              manually_categorized: true,
+            .eq('id', action.data.id)
+            .eq('user_id', user.id);
+          if (!updateRes.error) editCount++;
+          break;
+        case 'DELETE_TRANSACTION':
+          const delRes = await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', action.data.id)
+            .eq('user_id', user.id);
+          if (!delRes.error) deleteCount++;
+          break;
+        case 'CREATE_TRANSACTION':
+          const txDate = action.data.date
+            ? new Date(action.data.date)
+            : new Date();
+          const taxYear = txDate.getFullYear();
 
-      if (action.type === "edit" && action.updates) {
-        const { error } = await supabase
-          .from("transactions")
-          .update({
-            ...action.updates,
+          const { error } = await supabase.from("transactions").insert({
+            user_id: user.id,
+            description: action.data.description,
+            amount: action.data.amount,
+            naira_value: action.data.amount,
+            category: action.data.category || action.data.sub_category,
+            sub_category: action.data.sub_category,
+            main_category: action.data.main_category,
+            business_flag: action.data.main_category?.toLowerCase(),
+            is_income: action.data.is_income ?? false,
+            date: txDate.toISOString(),
+            tax_year: taxYear,
+            source: "manual",
             manually_categorized: true,
-          })
-          .in("id", action.ids)
-          .eq("user_id", user.id);
+          });
 
-        if (error) {
-          console.error("Batch edit error:", error);
-        } else {
-          editCount += action.ids.length;
-        }
-      } else if (action.type === "delete") {
-        const { error } = await supabase
-          .from("transactions")
-          .delete()
-          .in("id", action.ids)
-          .eq("user_id", user.id);
-
-        if (error) {
-          console.error("Batch delete error:", error);
-        } else {
-          deleteCount += action.ids.length;
-        }
-      } else if (action.type === "create" && action.data) {
-        const txDate = action.data.date
-          ? new Date(action.data.date)
-          : new Date();
-        const taxYear = txDate.getFullYear();
-
-        const { error } = await supabase.from("transactions").insert({
-          user_id: user.id,
-          description: action.data.description,
-          amount: action.data.amount,
-          naira_value: action.data.amount,
-          category: action.data.category,
-          is_income: action.data.is_income,
-          date: txDate.toISOString(),
-          tax_year: taxYear,
-          source: "manual",
-          manually_categorized: true,
-        });
-
-        if (error) {
-          console.error("Create error:", error);
-        } else {
-          editCount += 1;
-        }
+          if (error) {
+            console.error("Create error:", error);
+          } else {
+            editCount += 1;
+          }
+          break;
       }
     }
 

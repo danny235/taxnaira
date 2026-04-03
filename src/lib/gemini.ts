@@ -120,9 +120,11 @@ export async function classifyTransaction(
 
     Transaction Description: "${description}"
 
-    Return ONLY a JSON object with the following fields:
+     Return ONLY a JSON object with the following fields:
     {
-      "category": "string",
+      "main_category": "Choices: Business, Personal",
+      "category": "Broad category label (e.g. food, rent, salary)",
+      "sub_category": "Specific merchant or detail string (e.g. Bukka Lunch)",
       "confidence": number,
       "reasoning": "string"
     }
@@ -138,7 +140,9 @@ export async function classifyTransaction(
     console.error("Gemini Classification Error:", error);
     // Return default/error object rather than throwing to avoid breaking entire batch processing
     return {
-      category: "other_income",
+      main_category: "Personal",
+      category: "miscellaneous",
+      sub_category: "",
       confidence: 0,
       reasoning: "Error during classification",
     };
@@ -158,13 +162,15 @@ export async function extractDataFromStatement(
 
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
-    - date: (ISO 8601 format, note: input dates use Nigerian DD/MM/YYYY format)
-    - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
-    - amount: (number - Extract the value EXACTLY as written. Remove commas and currency symbols. Return as a plain number. NEVER round up or down. Double-check this against the source content for EVERY transaction.)
-    - is_income: (boolean)
-    - sub_category: (string - A dynamic, highly specific 1-3 word label based on the description. E.g. "logistics", "groceries", "web_hosting", "commute".)
-    - account_name: (string - Extract the sender or beneficiary name if clearly present in the narration.)
-    - reasoning: (string - why you chose this specific category)
+        - description (string): Clean merchant name or transaction type.
+        - amount (number): Positive for both income and expense.
+        - date (string): ISO format YYYY-MM-DD.
+        - is_income (boolean): true if money entry, false if exit.
+        - currency (string): Usually 'NGN'.
+        - main_category (string): ONLY "Business" or "Personal".
+        - sub_category (string): Specific descriptive name (e.g., 'Bybit', 'Amazon', 'Salary', 'Rent').
+        - reasoning (string): Brief logic for the classification.
+        - ai_confidence (number): 0 to 1.
 
     SELF-AUDIT RULE:
     Before finalizing the JSON, re-read the input text and verify that every 'amount' and 'date' matches the original document precisely.

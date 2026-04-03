@@ -49,7 +49,9 @@ export async function classifyTransaction(description: string) {
 
     Return ONLY a JSON object:
     {
-      "category": "string",
+      "main_category": "Choices: Business, Personal",
+      "category": "Broad category label (e.g., fuel, rent, salary)",
+      "sub_category": "Specific merchant or detail string",
       "confidence": number,
       "reasoning": "string"
     }
@@ -77,7 +79,9 @@ export async function classifyTransaction(description: string) {
   } catch (error) {
     console.error("OpenAI Classification Error:", error);
     return {
-      category: categorizeTransaction(description, false),
+      main_category: "Personal",
+      category: "miscellaneous",
+      sub_category: "",
       confidence: 0,
       reasoning: "Error during classification",
     };
@@ -145,14 +149,16 @@ async function processChunk(chunkData: string, fileType: string, userContext?: a
     
     Extract every transaction and return them as a JSON object with a key "transactions" which is an array of objects.
     Each object must have:
-    - date: (ISO 8601 format)
-    - description: (string - Extract the description EXACTLY as it appears in the source file. DO NOT rewrite, DO NOT summarize, DO NOT translate shorthand. It must be a 1:1 copy of the narration.)
-    - amount: (number - Extract the value EXACTLY as written. NEVER round. 100.99 must stay 100.99. Return as a clean number without commas or currency symbols. Verified against original line.)
-    - is_income: (boolean)
-    - main_category: (Choices: Business, Personal.)
-    - sub_category: (string - A dynamic, highly specific 1-3 word label based on the description. E.g., "fuel", "data", "staff_salary", "bank_charges", "logistics".)
+        - description (string): Clean merchant name or transaction type.
+        - amount (number): Positive for both income and expense.
+        - date (string): ISO format YYYY-MM-DD.
+        - is_income (boolean): true if money entry, false if exit.
+        - currency (string): Usually 'NGN'.
+        - main_category (string): ONLY "Business" or "Personal".
+        - sub_category (string): Specific descriptive name (e.g., 'Bybit', 'Amazon', 'Salary', 'Rent').
+        - reasoning (string): Brief logic for the classification.
+        - ai_confidence (number): 0 to 1.
     - account_name: (string - Extract the sender or beneficiary name if clearly present in the narration.)
-    - ai_confidence: (number - A score from 0.0 to 1.0 based on how sure you are of the categorization.)
 
     SELF-AUDIT RULE:
     Double-check every extracted amount against the source text before returning the JSON. Precision is 100% mandatory.

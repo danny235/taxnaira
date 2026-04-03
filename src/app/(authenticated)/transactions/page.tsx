@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Filter, Download, Loader2 } from 'lucide-react';
-import TransactionTable, { categories } from '@/components/transactions/transaction-table';
+import TransactionTable from '@/components/transactions/transaction-table';
 import TransactionAssistant from '@/components/transactions/transaction-assistant';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -24,7 +24,8 @@ export default function TransactionsPage() {
         date: new Date().toISOString().split('T')[0],
         description: '',
         amount: '',
-        category: '',
+        main_category: 'Business',
+        sub_category: '',
         currency: 'NGN'
     });
     const [saving, setSaving] = useState(false);
@@ -77,7 +78,7 @@ export default function TransactionsPage() {
     const filtered = transactions.filter(tx => {
         if (filter === 'income' && !tx.is_income) return false;
         if (filter === 'expense' && tx.is_income) return false;
-        if (categoryFilter !== 'all' && tx.category !== categoryFilter) return false;
+        if (categoryFilter !== 'all' && tx.main_category !== categoryFilter) return false;
         return true;
     });
 
@@ -85,8 +86,8 @@ export default function TransactionsPage() {
     const totalExpenses = transactions.filter(t => !t.is_income).reduce((sum, t) => sum + (t.naira_value || t.amount || 0), 0);
 
     const handleAddTransaction = async () => {
-        if (!newTx.description || !newTx.amount || !newTx.category) {
-            toast.error('Please fill all required fields');
+        if (!newTx.description || !newTx.amount) {
+            toast.error('Please fill description and amount');
             return;
         }
         if (!user?.id) {
@@ -95,25 +96,25 @@ export default function TransactionsPage() {
         }
 
         setSaving(true);
-        const cat = categories.find(c => c.value === newTx.category);
-
-        const txData = {
-            date: newTx.date,
-            description: newTx.description,
-            amount: Number(newTx.amount),
-            currency: newTx.currency,
-            naira_value: Number(newTx.amount),
-            category: newTx.category,
-            is_income: cat?.isIncome || false,
-            manually_categorized: true,
-            tax_year: currentYear
-        };
-
         try {
             const response = await fetch('/api/user/transactions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transactions: [txData] })
+                body: JSON.stringify({
+                    transactions: [{
+                        ...newTx,
+                        amount: parseFloat(newTx.amount),
+                        naira_value: parseFloat(newTx.amount),
+                        category: newTx.sub_category || newTx.main_category,
+                        main_category: newTx.main_category,
+                        sub_category: newTx.sub_category,
+                        business_flag: newTx.main_category.toLowerCase(),
+                        tax_year: new Date(newTx.date).getFullYear(),
+                        manually_categorized: true,
+                        source: 'manual',
+                        is_income: false // Default to expense for manual entry UI
+                    }]
+                })
             });
 
             if (!response.ok) {
@@ -127,7 +128,8 @@ export default function TransactionsPage() {
                 date: new Date().toISOString().split('T')[0],
                 description: '',
                 amount: '',
-                category: '',
+                main_category: 'Business',
+                sub_category: '',
                 currency: 'NGN'
             });
             fetchTransactions();
@@ -181,9 +183,9 @@ export default function TransactionsPage() {
                                 Add Transaction
                             </Button>
                         </DialogTrigger>
-                        <DialogContent>
+                        <DialogContent className="sm:max-w-[425px] dark:bg-slate-900 dark:border-slate-800">
                             <DialogHeader>
-                                <DialogTitle>Add Manual Transaction</DialogTitle>
+                                <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">Add Manual Transaction</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4 pt-4">
                                 <div>
@@ -192,40 +194,50 @@ export default function TransactionsPage() {
                                         type="date"
                                         value={newTx.date}
                                         onChange={(e) => setNewTx({ ...newTx, date: e.target.value })}
-                                        className="mt-1"
+                                        className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                                     />
                                 </div>
                                 <div>
-                                    <Label>Description</Label>
+                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Description</Label>
                                     <Input
                                         value={newTx.description}
                                         onChange={(e) => setNewTx({ ...newTx, description: e.target.value })}
                                         placeholder="Enter description"
-                                        className="mt-1"
+                                        className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                                     />
                                 </div>
                                 <div>
-                                    <Label>Amount (₦)</Label>
+                                    <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Amount (₦)</Label>
                                     <Input
                                         type="number"
                                         value={newTx.amount}
                                         onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
                                         placeholder="0.00"
-                                        className="mt-1"
+                                        className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                                     />
                                 </div>
-                                <div>
-                                    <Label>Category</Label>
-                                    <Select value={newTx.category} onValueChange={(v) => setNewTx({ ...newTx, category: v })}>
-                                        <SelectTrigger className="mt-1">
-                                            <SelectValue placeholder="Select category" />
-                                        </SelectTrigger>
-                                        <SelectContent position="popper" className="max-h-[300px]">
-                                            {categories.map(cat => (
-                                                <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Category</Label>
+                                        <Select value={newTx.main_category} onValueChange={(v) => setNewTx({ ...newTx, main_category: v })}>
+                                            <SelectTrigger className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="dark:bg-slate-900 dark:border-slate-700">
+                                                <SelectItem value="Business">Business</SelectItem>
+                                                <SelectItem value="Personal">Personal</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Sub Category</Label>
+                                        <Input
+                                            value={newTx.sub_category}
+                                            onChange={(e) => setNewTx({ ...newTx, sub_category: e.target.value })}
+                                            placeholder="e.g. Fuel"
+                                            className="mt-1 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                                        />
+                                    </div>
                                 </div>
                                 <Button
                                     onClick={handleAddTransaction}
@@ -242,17 +254,17 @@ export default function TransactionsPage() {
 
             {/* Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm p-4">
-                    <p className="text-sm text-slate-500">Total Transactions</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{transactions.length}</p>
+                <Card className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm p-4 hover:shadow-md transition-shadow">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Transactions</p>
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">{transactions.length}</p>
                 </Card>
-                <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm p-4">
-                    <p className="text-sm text-slate-500">Total Income</p>
-                    <p className="text-2xl font-bold text-emerald-600">₦{totalIncome.toLocaleString()}</p>
+                <Card className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm p-4 hover:shadow-md transition-shadow">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Income</p>
+                    <p className="text-2xl font-bold text-emerald-600 mt-1">₦{totalIncome.toLocaleString()}</p>
                 </Card>
-                <Card className="bg-white dark:bg-slate-800 border-0 shadow-sm p-4">
-                    <p className="text-sm text-slate-500">Total Expenses</p>
-                    <p className="text-2xl font-bold text-red-600">₦{totalExpenses.toLocaleString()}</p>
+                <Card className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm p-4 hover:shadow-md transition-shadow">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Total Expenses</p>
+                    <p className="text-2xl font-bold text-red-600 mt-1">₦{totalExpenses.toLocaleString()}</p>
                 </Card>
             </div>
 
@@ -266,15 +278,14 @@ export default function TransactionsPage() {
                     </TabsList>
                 </Tabs>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <Filter className="w-4 h-4 mr-2" />
+                    <SelectTrigger className="w-[180px] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+                        <Filter className="w-4 h-4 mr-2 text-slate-400" />
                         <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
-                    <SelectContent position="popper" className="max-h-[300px]">
+                    <SelectContent position="popper" className="max-h-[300px] dark:bg-slate-900 dark:border-slate-700">
                         <SelectItem value="all">All Categories</SelectItem>
-                        {categories.map(cat => (
-                            <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
-                        ))}
+                        <SelectItem value="Business">Business</SelectItem>
+                        <SelectItem value="Personal">Personal</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -316,16 +327,16 @@ export default function TransactionsPage() {
 }
 
 // Custom animation for the progress bar
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes progress {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-  }
-  .animate-progress {
-    animation: progress 1.5s infinite linear;
-  }
-`;
 if (typeof document !== 'undefined') {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes progress {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      .animate-progress {
+        animation: progress 1.5s infinite linear;
+      }
+    `;
     document.head.appendChild(style);
 }
