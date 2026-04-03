@@ -82,7 +82,7 @@ export function InstallPrompt() {
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 50 }}
-                className="fixed bottom-24 lg:bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-[360px] z-[60]"
+                className="fixed bottom-24 lg:bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-[360px] z-60"
             >
                 <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-4 shadow-2xl shadow-black/20 flex flex-col gap-3 relative overflow-hidden">
                     {/* Top accent bar */}
