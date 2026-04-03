@@ -389,7 +389,7 @@ export default function ReportsPage() {
                         animate={{ height: typeof window !== 'undefined' && window.innerWidth < 1024 ? "70%" : "45%", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col border-t border-slate-200/50 dark:border-slate-800 bg-white/60 dark:bg-slate-950/80 backdrop-blur-2xl rounded-t-[2rem] lg:rounded-t-[3rem] overflow-hidden shadow-[0_-20px_50px_-15px_rgba(0,0,0,0.1)] z-50 fixed lg:relative bottom-0 left-0 right-0 lg:static"
+                        className="flex flex-col border-t border-slate-200/50 dark:border-slate-800 bg-white/60 dark:bg-slate-950/80 backdrop-blur-2xl rounded-t-4xl lg:rounded-t-[3rem] overflow-hidden shadow-[0_-20px_50px_-15px_rgba(0,0,0,0.1)] z-50 fixed lg:static bottom-0 left-0 right-0"
                     >
                         <div className="px-8 py-4 border-b border-slate-200/30 dark:border-slate-800/50 flex items-center justify-between">
                             <div className="flex items-center gap-3">
