@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { SupportChat } from '@/components/support/support-chat'
 import { PushManager } from '@/components/notifications/push-manager'
+import { InstallPrompt } from '@/components/pwa/install-prompt'
 
 export function AppLayout({ 
     children, 
@@ -141,6 +142,9 @@ export function AppLayout({
 
             {/* Push Notifications Manager */}
             <PushManager />
+
+            {/* PWA Install Prompt */}
+            <InstallPrompt />
         </div>
     )
 }
